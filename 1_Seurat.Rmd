@@ -49,7 +49,6 @@ Obviously, using existing packages has many advantages but also **some critical 
     ![](images/Screenshot%202023-08-07%20at%2009.52.28.png)
 
 ```{r}
-?library
 ?renv::snapshot
 ```
 
@@ -88,6 +87,7 @@ renv::restore() # Run once, when you download a project folder and want to insta
 
 library(Seurat)
 library(ggplot2)
+library(dplyr)
 ```
 
 # Loading the data
@@ -163,7 +163,7 @@ rm(plot1, plot2)
 
 -   We filter cells that have \>5% mitochondrial counts
 
-```{r}
+```{r warning=FALSE}
 # Seurat plots can be easily modified with the popular ggplots2 library by chaining it with the "&" operator
 plot1 <- VlnPlot(pbmc, features = "nFeature_RNA") &
   geom_hline(yintercept = c(200, 2500), linetype='dashed', col = 'red') & NoLegend()
@@ -194,15 +194,15 @@ rm(plot1, plot2)
 pbmc <- NormalizeData(pbmc, normalization.method = "LogNormalize", scale.factor = 10000)
 
 # Find variable features
-pbmc <- FindVariableFeatures(pbmc, selection.method = "vst", nfeatures = 2000)
+pbmc <- FindVariableFeatures(pbmc, selection.method = "vst", nfeatures = 500)
 top10 <- head(VariableFeatures(pbmc), 10)
 plot1 <- VariableFeaturePlot(pbmc)
 plot1 <- LabelPoints(plot = plot1, points = top10, repel = TRUE)
 plot1
 rm(top10, plot1)
 
-# Scales data, including unwanted sources of variation
-pbmc <- ScaleData(pbmc, vars.to.regress = "percent.mt")
+# Scale data
+pbmc <- ScaleData(pbmc)
 ```
 
 # Data exploration & visualization
@@ -305,17 +305,12 @@ If we run the function RunUMAP() again, the resulting graph is not identical to 
 When you write code that involves creating variables that take on random values, you should use the [**set.seed()**]{.underline} function. It guarantees that the same random values are produced each time you run the code.
 
 ```{r warning=FALSE}
-# If we run the function RunUMAP() again, you will see that the resulting graph is not identical tom the above one!
-pbmc <- RunUMAP(pbmc, dims = 1:10, seed.use = NULL)
-DimPlot(pbmc, reduction = "umap", label = TRUE)
-
 # Setting a "seed" defines a reproducible starting point, instead of choosing a random one
 my_seed <- 42
 set.seed(my_seed)
-# Note: Seurat considers setting a seed for reproducibility and, by default, uses set.seed = 42 internally (as you can see in the documentation of the RunUMAP function)
 
 # Not all stochastic functions do this by default!
-# By placing the set.seed(42) at the beginning of any script ensures that the same seed is used throughout the whole script. However, to complicate our lives, some people had the great idea to reset the seed in their functions. Consider this if your result seem to change even though you set the seed in your script properly.
+# By placing the set.seed(42) (or any other number you like) at the beginning of any script ensures that the same seed is used throughout the whole script. However, to complicate our lives, some functions can re-set another seed. Additionally, even though you set a seed, stochastic processes can vary on different computers and OSs and UMAPs can still look slightly different. Consider this if your result seem to change even though you set the seed in your script properly.
 
 # Runnning RunUMAP with a defined seed
 pbmc <- RunUMAP(pbmc, dims = 1:10, seed.use = my_seed)
@@ -324,9 +319,69 @@ DimPlot(pbmc, reduction = "umap", label = TRUE)
 # Runnning RunUMAP with the same seed again, gives an identical result
 pbmc <- RunUMAP(pbmc, dims = 1:10, seed.use = my_seed)
 DimPlot(pbmc, reduction = "umap", label = TRUE)
+
+# Note: Seurat considers setting a seed for reproducibility and, by default, uses set.seed = 42 internally (as you can see in the documentation of the RunUMAP function)
+pbmc <- RunUMAP(pbmc, dims = 1:10)
+DimPlot(pbmc, reduction = "umap", label = TRUE)
 ```
 
 You can save the object at this point so that it can easily be loaded back in without having to rerun the computationally intensive steps performed above, or easily shared with collaborators.
+
 ```{r}
 saveRDS(pbmc, file = "./output/pbmc_tutorial.rds")
+```
+
+## Finding differentially expressed features (cluster biomarkers)
+
+Seurat can help you find markers that define clusters via differential expression. By default, it identifies positive and negative markers of a single cluster (specified in ident.1), compared to all other cells. FindAllMarkers() automates this process for all clusters, but you can also test groups of clusters vs. each other, or against all cells.
+
+The min.pct argument requires a feature to be detected at a minimum percentage in either of the two groups of cells, and the thresh.test argument requires a feature to be differentially expressed (on average) by some amount between the two groups. You can set both of these to 0, but with a dramatic increase in time - since this will test a large number of features that are unlikely to be highly discriminatory. As another option to speed up these computations, max.cells.per.ident can be set. This will downsample each identity class to have no more cells than whatever this is set to. While there is generally going to be a loss in power, the speed increases can be significant and the most highly differentially expressed features will likely still rise to the top.
+
+```{r paged.print=FALSE}
+# find all markers of cluster 2
+cluster2.markers <- FindMarkers(pbmc, ident.1 = 2, min.pct = 0.25)
+head(cluster2.markers, n = 5)
+```
+
+```{r paged.print=FALSE}
+# find all markers distinguishing cluster 5 from clusters 0 and 3
+cluster5.markers <- FindMarkers(pbmc, ident.1 = 5, ident.2 = c(0, 3), min.pct = 0.25)
+head(cluster5.markers, n = 5)
+```
+
+```{r fig.height=8}
+VlnPlot(pbmc, features = c("MS4A1", "CD79A", "NKG7", "CD8A", "CD8B"), ncol = 2)
+```
+
+```{r fig.width=10, fig.height=8}
+FeaturePlot(pbmc, features = c("MS4A1", "GNLY", "CD3E", "CD14", "FCER1A", "FCGR3A", "LYZ", "PPBP", "CD8A"))
+```
+
+DoHeatmap() generates an expression heatmap for given cells and features. In this case, we are plotting the top 20 markers (or all markers if less than 20) for each cluster.
+
+```{r}
+# find markers for every cluster compared to all remaining cells, for example only the positive ones
+pbmc.markers <- FindAllMarkers(pbmc, only.pos = TRUE, min.pct = 0.25, logfc.threshold = 0.25)
+pbmc.markers %>%
+    group_by(cluster) %>%
+    slice_max(n = 2, order_by = avg_log2FC)
+```
+
+```{r fig.width=7, fig.height=10}
+pbmc.markers %>%
+    group_by(cluster) %>%
+    top_n(n = 10, wt = avg_log2FC) -> top10
+DoHeatmap(pbmc, features = top10$gene) + NoLegend()
+```
+
+```{r "Load solutions (SPOILER ALERT)"}
+solutions_df <- readRDS('./output/1_Solutions.rds')
+solutions_df
+```
+
+```{r "Apply and plot solutions (SPOILER ALERT)"}
+new.cluster.ids <- solutions_df$Cell.Type
+names(new.cluster.ids) <- levels(pbmc)
+pbmc <- RenameIdents(pbmc, new.cluster.ids)
+DimPlot(pbmc, reduction = "umap", label = TRUE, pt.size = 0.5) + NoLegend()
 ```
