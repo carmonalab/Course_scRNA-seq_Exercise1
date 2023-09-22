@@ -1,0 +1,387 @@
+---
+title: "Exercise week 4"
+output: 
+  html_document: 
+    number_sections: true
+    toc: true
+---
+
+# Week 4
+
+# Introduction
+
+In the first part of the course you mainly learned about the fundamental concepts in (gene expression) data analysis and implemented them by writing your own algorithms for each one of them.
+
+In this second part of the course we will make our life much easier! As our colleagues all around the world face the same challenges as we do, sometimes in completely different fields of science, there is a package written by someone else for almost anything already out there. Why re-inventing the wheel, right?
+
+So, in this first exercise, you will learn about the most popular software packages for scRNA-seq data analysis called **Seurat**, and how to create a reproducible bioinformatics experiment with it. This tutorial is based mainly on the [**Seurat introduction tutorial**]{.underline} ([link](https://satijalab.org/seurat/articles/pbmc3k_tutorial)). There you can find further explanations on functions, techniques and references. You can also use it as an additional guide to this exercise.
+
+## Using existing packages
+
+Obviously, using existing packages has many advantages but also **some critical points to consider:**
+
+[Advantages]{.underline}
+
+-   Ready-made and easy to use
+
+-   Speeds up data analysis process A LOT
+
+[Points to consider]{.underline}
+
+-   [**Which version was used to run your code?**]{.underline} A piece of code might run with one version of a package but not with an older or newer version, due to changes in the source code. [**Different versions of a package or R itself might break some parts of your code!**]{.underline} How can we make sure that our code can be reproduced by us and others now and in the future?
+
+-   What parameters are used? Sometimes, the default parameter might not be "one size fits it all". You need to check what they do and when and how to adapt them.
+
+## Some useful tips in RStudio:
+
+-   If you want to know more about a function, you can always check by typing a question mark and then the function name in the console and hit `Enter`, for example `?library` (see code chunk below).
+
+-   In this R markdown file, you can run a whole code chunk with the "play" button "[▶️]{style="color:green"}" in the top-right corner of the code chunk box (see code chunk below).
+
+-   To run a single line of code or a selected piece of code, select it with the cursor and hit the hotkeys `Ctrl + Enter` or **`⌘`** `+ Enter`.
+
+-   To increase or decrease the font size in RStudio, hit `Ctrl/⌘ + "+"` or `Ctrl/⌘ + "-"`.
+
+-   In this R markdown file, you can switch to the `Source` code view by clicking `Source` in the top-left corner:\
+    ![](images/Screenshot%202023-08-03%20at%2015.54.26.png)
+
+-   RStudio has a very useful `Outline` function, which makes navigating a long script much easier. It can be used in R markdown files but also for regular R scripts (highly recommended) by opening the `Outline` on the top-right corner of the script window:\
+    ![](images/Screenshot%202023-08-07%20at%2009.52.28.png)
+
+```{r}
+?renv::snapshot
+```
+
+# Loading the environment
+
+Instead of loading the libraries one by one, we will use the R package [**renv** (link)](https://rstudio.github.io/renv/articles/renv.html) (which reproduces the environment functionality from Python). Renv allows you to create "snapshots" of the R version and the packages used within an R project, and thus making it reproducible. It is stored in the "renv.lock" file in your project folder.
+
+```{r}
+# Where does our project live?
+getwd()
+
+# List the content of our project folder
+list.files(getwd())
+```
+
+```{r}
+# Lets have a look the first 20 lines in the renv.lock file
+renv.lock_relative_file_path <- "renv.lock"
+file_content <- read.delim(file = renv.lock_relative_file_path)
+cat(file_content[1:20,], sep="\n")
+
+# Remove variables that are not needed anymore to keep the environment clean
+rm(renv.lock_relative_file_path, file_content)
+```
+
+```{r, message=FALSE, warning=F, results=FALSE}
+# You don't need to install all libraries separately any more
+
+# Load the whole environment with the "renv" package function renv::restore()
+# renv::init() # Used only one time after creating a new project. You don't need to run it.
+# renv::snapshot() # Done when installing additional packages. You don't need to run it.
+renv::restore() # Run once, when you download a project folder and want to install all dependencies.
+
+# When asked to activate the project, type "y" in the console and press the Enter key.
+# Same when asked "do you want to proceed?". Type "y" in the console and press the Enter key
+
+library(Seurat)
+library(ggplot2)
+library(dplyr)
+```
+
+# Loading the data
+
+```{r, message=FALSE, warning=F}
+# Load the Peripheral Blood Mononuclear Cells (PBMC) dataset
+pbmc.data <- Read10X(data.dir = "./data/")
+
+# Initialize the Seurat object with the raw (non-normalized data).
+# We only include genes that are found in at least 3 cells and cells that have at least 200 features=genes
+pbmc <- CreateSeuratObject(counts = pbmc.data, project = "pbmc3k",
+                           min.cells = 3, min.features = 200)
+pbmc
+```
+
+As you can see, our data set contains 2700 cells with 13714 features (genes).
+
+The data is stored in so called "Seurat objects". These are "S4 objects". To not go into too much details, you can think of them like a list of lists, with a specific class (meaning it has specific properties) assigned. You can have a look at the Seurat object data structure by navigating to RStudio's `Environment` tab in the top-right corner and clicking on the "pbmc" object we just created.
+
+```{r}
+# Lets examine a few genes in the first five cells
+pbmc.data[c("CD3D", "CD8A", "MS4A1"), 1:5]
+rm(pbmc.data)
+```
+
+The `.` values in the matrix represent 0s (no molecules detected). Since most values in an scRNA-seq matrix are 0, Seurat uses a sparse-matrix representation whenever possible. This results in significant memory and speed savings for Drop-seq/inDrop/10x data.
+
+# QC and pre-processing
+
+## Quality control (QC)
+
+To remove empty droplets, dead and damaged cells and possible doublets (two cells in one droplet), common quality control (QC) metrics include:
+
+-   The number of unique genes detected in each cell.
+
+    -   Low-quality cells or empty droplets will often have very few genes
+
+    -   Cell doublets or multiplets may exhibit an aberantly high gene count
+
+-   Similarly, the total number of molecules detected within a cell (correlates strongly with unique genes)
+
+-   The percentage of reads that map to the mitochondrial genome
+
+    -   Low-quality / dying cells often exhibit extensive mitochondrial contamination
+
+    -   We calculate the mitochondrial QC metric with the [`PercentageFeatureSet()`](https://satijalab.org/seurat/reference/percentagefeatureset) function, which calculates the percentage of counts originating from a set of mitochondrial genes (all genes starting with "MT-")
+
+    -   CAREFUL: some cells might contain much higher mitochondrial content by design, for example cardiomyocytes. So keep that in mind. The mitochondrial gene content cutoff (and other filters) might need to be adjusted [*according to your sample and the sequencing technology*]{.underline}. Typical mito cutoff filters are \<10 - 20%. For more information and examples, see this publication:\
+        [**Biology-inspired data-driven quality control for scientific discovery in single-cell transcriptomics**](https://genomebiology.biomedcentral.com/articles/10.1186/s13059-022-02820-w)
+
+```{r paged.print=FALSE}
+# The [[ operator can add columns to object metadata. This is a great place to stash QC stats
+pbmc[["percent.mt"]] <- PercentageFeatureSet(pbmc, pattern = "^MT-")
+
+# Show QC metrics for the first 5 cells
+head(pbmc@meta.data, 5)
+```
+
+In the example below, we visualize QC metrics, and use these to filter cells.
+
+```{r}
+# Visualize QC metrics as a violin plot
+VlnPlot(pbmc, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3)
+
+# FeatureScatter is typically used to visualize feature-feature relationships, but can be used for anything calculated by the object, i.e. columns in object metadata, PC scores etc.
+plot1 <- FeatureScatter(pbmc, feature1 = "nCount_RNA", feature2 = "percent.mt") & NoLegend()
+plot2 <- FeatureScatter(pbmc, feature1 = "nCount_RNA", feature2 = "nFeature_RNA") & NoLegend()
+plot1 + plot2
+rm(plot1, plot2)
+```
+
+-   We filter cells that have unique feature counts less than 200 or over 2,500
+
+-   We filter cells that have \>5% mitochondrial counts
+
+```{r warning=FALSE}
+# Seurat plots can be easily modified with the popular ggplots2 library by chaining it with the "&" operator
+plot1 <- VlnPlot(pbmc, features = "nFeature_RNA") &
+  geom_hline(yintercept = c(200, 2500), linetype='dashed', col = 'red') & NoLegend()
+plot2 <- VlnPlot(pbmc, features = "nCount_RNA") & NoLegend()
+plot3 <- VlnPlot(pbmc, features = "percent.mt") &
+  geom_hline(yintercept = 5, linetype='dashed', col = 'red') & NoLegend()
+patchwork::wrap_plots(plot1, plot2, plot3, ncol = 3)
+rm(plot1, plot2, plot3)
+
+# Subset data according to our filter creteria
+pbmc <- subset(pbmc, subset = nFeature_RNA > 200 & nFeature_RNA < 2500 & percent.mt < 5)
+
+# FeatureScatter is typically used to visualize feature-feature relationships, but can be used for anything calculated by the object, i.e. columns in object metadata, PC scores etc.
+plot1 <- FeatureScatter(pbmc, feature1 = "nCount_RNA", feature2 = "percent.mt") & NoLegend()
+plot2 <- FeatureScatter(pbmc, feature1 = "nCount_RNA", feature2 = "nFeature_RNA") & NoLegend()
+plot1 + plot2
+rm(plot1, plot2)
+
+# Cells with the highest mitochondrial content also have the lowest number of genes detected
+```
+
+## Pre-processing
+
+### Convenience of libraries
+
+```{r, warning=FALSE}
+# Normalize data
+pbmc <- NormalizeData(pbmc, normalization.method = "LogNormalize", scale.factor = 10000)
+
+# Find variable features
+pbmc <- FindVariableFeatures(pbmc, selection.method = "vst", nfeatures = 500)
+top10 <- head(VariableFeatures(pbmc), 10)
+plot1 <- VariableFeaturePlot(pbmc)
+plot1 <- LabelPoints(plot = plot1, points = top10, repel = TRUE)
+plot1
+rm(top10, plot1)
+
+# Scale data
+pbmc <- ScaleData(pbmc)
+```
+
+# Data exploration & visualization
+
+As you have seen above, in scRNA-seq, we typically start with a sparse matrix, containing typically tens to hundreds of thousands of cells (columns) each with thousands of genes (rows) measured PER SAMPLE. How do we explore this huge amount data?
+
+Biologically, we are interested in the cells. Some questions that we or our collaborators might be interested in include:
+
+-   What cell types are there?
+
+-   Cell type composition (relative cell type abundance per sample)?
+
+-   Which genes are differentially expressed between samples?
+
+-   Do certain cells express specific gene programs? (e.g. cycling vs non-cycling, stem cell to differentiated cells trajectory, ...)
+
+The first step is always to boil down the data into the most important factors explaining the biggest part of the variance, i.e. to reduce the dimensionality. This can be achieved with, for example, a principle-component analysis (PCA). Sample or cell similarity scoring is then based on e.g. Euclidean distances.
+
+## Performing linear dimensionality reduction by PCA
+
+```{r warning=FALSE}
+pbmc <- RunPCA(pbmc, features = VariableFeatures(object = pbmc))
+
+# Examine and visualize PCA results a few different ways
+print(pbmc[["pca"]], dims = 1:5, nfeatures = 5)
+VizDimLoadings(pbmc, dims = 1:2, reduction = "pca")
+DimPlot(pbmc, reduction = "pca")
+DimHeatmap(pbmc, dims = 1, cells = 500, balanced = TRUE)
+```
+
+```{r fig.width=5, fig.height=10, warning=FALSE}
+# Now lets look at some more PCA dimensions
+# At some point around PC_13 we see in the heatmap that not much variance is caught across the cells anymore and the PCs get noisier.
+DimHeatmap(pbmc, dims = 1:15, cells = 500, balanced = TRUE)
+```
+
+## Determine the dimensionality of the data
+
+To overcome the extensive technical noise in any single feature for scRNA-seq data, Seurat clusters cells based on their PCA scores, with each PC essentially representing a 'metafeature' that combines information across a correlated feature set. The top principal components therefore represent a robust compression of the dataset. However, how many components should we choose to include? 10? 20? 100?
+
+The elbow plot is a simple heuristic method to investigate the dimensionality of the data. It ranks the PCA dimensions based on the percentage of variance each one of them explains.
+
+In this example we can see an 'elbow' around PC9-10, suggesting that the majority of true signal is captured in the first 10 PCs.
+
+TIP: from our experience, it is better to test a few values and [**include rather more than less PCs**]{.underline}. [**Typically, we use 15-30 dimensions**]{.underline} (as even higher PC can still contain a little bit of signal that can be useful). This depends on your data. Including too few principal components might result in missing out on a low abundant cell population. Using excessively many dimensions on the other hand might result in including unwanted noise which does not explain any meaningful variance.
+
+```{r}
+ElbowPlot(pbmc)
+```
+
+## Clustering
+
+Next, we perform K-nearest neighbor (KNN) clustering, with edges drawn between cells with similar feature expression patterns, and then attempt to partition this graph into highly interconnected 'quasi-cliques' or 'communities'.
+
+We first construct a KNN graph based on the euclidean distance in PCA space, and refine the edge weights between any two cells based on the shared overlap in their local neighborhoods (Jaccard similarity). This step is performed using the [`FindNeighbors()`](https://satijalab.org/seurat/reference/findneighbors) function, and takes as input the previously defined dimensionality of the dataset (e.g. first 10 PCs).
+
+To cluster the cells, we next apply modularity optimization techniques such as the Louvain algorithm (default), to iteratively group cells together, with the goal of optimizing the standard modularity function. The [`FindClusters()`](https://satijalab.org/seurat/reference/findclusters) function implements this procedure, and contains a resolution parameter that sets the 'granularity' of the downstream clustering, with increased values leading to a greater number of clusters. By experience, setting this parameter between 0.4-1.2 typically returns good results for single-cell datasets of around 3K cells. Optimal resolution can increase for larger datasets and needs to be tested. The clusters can be found using the [`Idents()`](https://mojaveazure.github.io/seurat-object/reference/Idents.html) function.
+
+```{r warning=FALSE}
+pbmc <- FindNeighbors(pbmc, dims = 1:10)
+pbmc <- FindClusters(pbmc, resolution = 0.5)
+
+# Look at cluster IDs of the first 5 cells
+head(Idents(pbmc), 5)
+
+# For comparison, this is how the cluters look in the linear PCA space
+DimPlot(pbmc, reduction = "pca", label = TRUE)
+```
+
+## Run non-linear dimensional reduction (UMAP/tSNE)
+
+UMAP works a bit like magnets: Similar cells attract each other while non-similar ones repel each other. This results in much better separated clusters. If you want to better understand how it works and its hyperparameters, here is a cool website to play around with it, where you see changes in real-time: <https://pair-code.github.io/understanding-umap/>.
+
+[**IMPORTANT: Distances between UMAP clusters might not mean anything and are NOT QUANTITATIVE!**]{.underline}
+
+While it's true that the global positions of clusters are better preserved in UMAP, the distances between them are not meaningful. Again, this is due to using local (thus non-linear) distances when constructing the graph. However, this does not mean UMAPs useless. Quite the contrary! UMAPs are a great tool to group local communities, such as single cell types. But cell types and subtypes might be grouped together or separate based on the specific hyperparameter combination used. Unfortunately, there is no "optimal" parameter setting, as it depends on your data. This is why we need additional information to solve this cell type classification problem: by bringing in our informed expert knowledge on the cell types.
+
+```{r warning=FALSE}
+pbmc <- RunUMAP(pbmc, dims = 1:10, seed.use = NULL)
+
+DimPlot(pbmc, reduction = "umap")
+
+# note that you can set `label = TRUE` or use the LabelClusters function to help label
+# individual clusters
+DimPlot(pbmc, reduction = "umap", label = TRUE)
+```
+
+### Making stochastic processes reproducible
+
+UMAP is a stochastic algorithm. What does that mean? Run the chunk below. It's the exact same code as in the chunk above. Compare the resulting graphs.
+
+```{r warning=FALSE}
+# Run this chunk and compare the plot to the one above. What do you notice?
+pbmc <- RunUMAP(pbmc, dims = 1:10, seed.use = NULL)
+DimPlot(pbmc, reduction = "umap", label = TRUE)
+```
+
+If we run the function RunUMAP() again, the resulting graph is not identical to the above one! However, we want to have reproducible results. If another scientist wants to reproduce our findings, our code should yield the same result every time it is run. So how?
+
+When you write code that involves creating variables that take on random values, you should use the [**set.seed()**]{.underline} function. It guarantees that the same random values are produced each time you run the code.
+
+```{r warning=FALSE}
+# Setting a "seed" defines a reproducible starting point, instead of choosing a random one
+my_seed <- 42
+set.seed(my_seed)
+
+# Not all stochastic functions do this by default!
+# By placing the set.seed(42) (or any other number you like) at the beginning of any script ensures that the same seed is used throughout the whole script. However, to complicate our lives, some functions can re-set another seed. Additionally, even though you set a seed, stochastic processes can vary on different computers and OSs and UMAPs can still look slightly different. Consider this if your result seem to change even though you set the seed in your script properly.
+
+# Runnning RunUMAP with a defined seed
+pbmc <- RunUMAP(pbmc, dims = 1:10, seed.use = my_seed)
+DimPlot(pbmc, reduction = "umap", label = TRUE)
+
+# Runnning RunUMAP with the same seed again, gives an identical result
+pbmc <- RunUMAP(pbmc, dims = 1:10, seed.use = my_seed)
+DimPlot(pbmc, reduction = "umap", label = TRUE)
+
+# Note: Seurat considers setting a seed for reproducibility and, by default, uses set.seed = 42 internally (as you can see in the documentation of the RunUMAP function)
+pbmc <- RunUMAP(pbmc, dims = 1:10)
+DimPlot(pbmc, reduction = "umap", label = TRUE)
+```
+
+You can save the object at this point so that it can easily be loaded back in without having to rerun the computationally intensive steps performed above, or easily shared with collaborators.
+
+```{r}
+saveRDS(pbmc, file = "./output/pbmc_tutorial.rds")
+```
+
+## Finding differentially expressed features (cluster biomarkers)
+
+Seurat can help you find markers that define clusters via differential expression. By default, it identifies positive and negative markers of a single cluster (specified in ident.1), compared to all other cells. FindAllMarkers() automates this process for all clusters, but you can also test groups of clusters vs. each other, or against all cells.
+
+The min.pct argument requires a feature to be detected at a minimum percentage in either of the two groups of cells, and the thresh.test argument requires a feature to be differentially expressed (on average) by some amount between the two groups. You can set both of these to 0, but with a dramatic increase in time - since this will test a large number of features that are unlikely to be highly discriminatory. As another option to speed up these computations, max.cells.per.ident can be set. This will downsample each identity class to have no more cells than whatever this is set to. While there is generally going to be a loss in power, the speed increases can be significant and the most highly differentially expressed features will likely still rise to the top.
+
+```{r paged.print=FALSE}
+# find all markers of cluster 2
+cluster2.markers <- FindMarkers(pbmc, ident.1 = 2, min.pct = 0.25)
+head(cluster2.markers, n = 5)
+```
+
+```{r paged.print=FALSE}
+# find all markers distinguishing cluster 5 from clusters 0 and 3
+cluster5.markers <- FindMarkers(pbmc, ident.1 = 5, ident.2 = c(0, 3), min.pct = 0.25)
+head(cluster5.markers, n = 5)
+```
+
+```{r fig.height=8}
+VlnPlot(pbmc, features = c("MS4A1", "CD79A", "NKG7", "CD8A", "CD8B"), ncol = 2)
+```
+
+```{r fig.width=10, fig.height=8}
+FeaturePlot(pbmc, features = c("MS4A1", "GNLY", "CD3E", "CD14", "FCER1A", "FCGR3A", "LYZ", "PPBP", "CD8A"))
+```
+
+DoHeatmap() generates an expression heatmap for given cells and features. In this case, we are plotting the top 20 markers (or all markers if less than 20) for each cluster.
+
+```{r}
+# find markers for every cluster compared to all remaining cells, for example only the positive ones
+pbmc.markers <- FindAllMarkers(pbmc, only.pos = TRUE, min.pct = 0.25, logfc.threshold = 0.25)
+pbmc.markers %>%
+    group_by(cluster) %>%
+    slice_max(n = 2, order_by = avg_log2FC)
+```
+
+```{r fig.width=7, fig.height=10}
+pbmc.markers %>%
+    group_by(cluster) %>%
+    top_n(n = 10, wt = avg_log2FC) -> top10
+DoHeatmap(pbmc, features = top10$gene) + NoLegend()
+```
+
+```{r "Load solutions (SPOILER ALERT)"}
+solutions_df <- readRDS('./output/1_Solutions.rds')
+solutions_df
+```
+
+```{r "Apply and plot solutions (SPOILER ALERT)"}
+new.cluster.ids <- solutions_df$Cell.Type
+names(new.cluster.ids) <- levels(pbmc)
+pbmc <- RenameIdents(pbmc, new.cluster.ids)
+DimPlot(pbmc, reduction = "umap", label = TRUE, pt.size = 0.5) + NoLegend()
+```
