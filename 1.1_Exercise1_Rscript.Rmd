@@ -1,12 +1,24 @@
 ---
-title: "Exercise week 4"
+title: "Exercise 1"
 output: 
   html_document: 
     number_sections: true
     toc: true
 ---
 
-# Week 4
+# Exercise 1
+
+# Goals
+
+-   Discover the Seurat package for scRNA-seq data
+
+-   Start small with a single sample:
+
+    -   Learn about common quality control (QC) and pre-processing
+
+    -   Explore and structure the data
+
+    -   Annotate cell clusters manually
 
 # Introduction
 
@@ -77,6 +89,8 @@ rm(renv.lock_relative_file_path, file_content)
 ```{r, message=FALSE, warning=F, results=FALSE}
 # You don't need to install all libraries separately any more
 
+# In case you get an error about "rcppArmadillo" not being installed, please install it manually.
+
 # Load the whole environment with the "renv" package function renv::restore()
 # renv::init() # Used only one time after creating a new project. You don't need to run it.
 # renv::snapshot() # Done when installing additional packages. You don't need to run it.
@@ -92,18 +106,20 @@ library(dplyr)
 
 # Loading the data
 
+Note: this Peripheral Blood Mononuclear Cells (PBMC) dataset from 10X is a very "clean" dataset. In exercise 2 of this course you will have a look at the breast cancer scRNA-seq data that you shortly looked at before during David Gfeller's part of the course. It is a more representative "real-world" dataset.
+
 ```{r, message=FALSE, warning=F}
 # Load the Peripheral Blood Mononuclear Cells (PBMC) dataset
 pbmc.data <- Read10X(data.dir = "./data/")
 
-# Initialize the Seurat object with the raw (non-normalized data).
+# Initialize the Seurat object with the raw (non-normalized) data.
 # We only include genes that are found in at least 3 cells and cells that have at least 200 features=genes
 pbmc <- CreateSeuratObject(counts = pbmc.data, project = "pbmc3k",
                            min.cells = 3, min.features = 200)
 pbmc
 ```
 
-As you can see, our data set contains 2700 cells with 13714 features (genes).
+As you can see, our data set contains 2700 samples (cells) with 13714 features (genes).
 
 The data is stored in so called "Seurat objects". These are "S4 objects". To not go into too much details, you can think of them like a list of lists, with a specific class (meaning it has specific properties) assigned. You can have a look at the Seurat object data structure by navigating to RStudio's `Environment` tab in the top-right corner and clicking on the "pbmc" object we just created.
 
@@ -125,13 +141,17 @@ To remove empty droplets, dead and damaged cells and possible doublets (two cell
 
     -   Low-quality cells or empty droplets will often have very few genes
 
-    -   Cell doublets or multiplets may exhibit an aberantly high gene count
+    -   Cell doublets or multiplets may exhibit an aberrantly high gene count
 
 -   Similarly, the total number of molecules detected within a cell (correlates strongly with unique genes)
 
 -   The percentage of reads that map to the mitochondrial genome
 
-    -   Low-quality / dying cells often exhibit extensive mitochondrial contamination
+    -   Low-quality / dying cells often show an over-representation of mitochondrial genes because of two main reasons:
+
+        -   Firstly, because damaged cells might have holes in the cell membrane through which the cytoplasmic content (including mRNA) can leak out of the cells. Large organelles (e.g. the mitochondria and the mRNA therein) are less likely to leak out through the perforated cell membrane.
+
+        -   Secondly: "Apoptotic cells express mitochondrial genes and export these transcripts to the cytoplasm in mammalian cells. For example, when apoptotic cells are spiked into an otherwise healthy cell suspension, an increased number of mitochondrial genes are detected." (source: 10X [website](https://kb.10xgenomics.com/hc/en-us/articles/360001086611-Why-do-I-see-a-high-level-of-mitochondrial-gene-expression-#:~:text=High%20expression%20levels%20of%20mitochondrial,metabolic%20activity%20and%2For%20necrosis.) and [experiment](https://www.10xgenomics.com/support/single-cell-gene-expression/documentation/steps/sample-prep/removal-of-dead-cells-from-single-cell-suspensions-improves-performance-for-10-x-genomics-r-single-cell-applications))
 
     -   We calculate the mitochondrial QC metric with the [`PercentageFeatureSet()`](https://satijalab.org/seurat/reference/percentagefeatureset) function, which calculates the percentage of counts originating from a set of mitochondrial genes (all genes starting with "MT-")
 
@@ -173,7 +193,7 @@ plot3 <- VlnPlot(pbmc, features = "percent.mt") &
 patchwork::wrap_plots(plot1, plot2, plot3, ncol = 3)
 rm(plot1, plot2, plot3)
 
-# Subset data according to our filter creteria
+# Subset data according to our filter criteria
 pbmc <- subset(pbmc, subset = nFeature_RNA > 200 & nFeature_RNA < 2500 & percent.mt < 5)
 
 # FeatureScatter is typically used to visualize feature-feature relationships, but can be used for anything calculated by the object, i.e. columns in object metadata, PC scores etc.
@@ -194,15 +214,17 @@ rm(plot1, plot2)
 pbmc <- NormalizeData(pbmc, normalization.method = "LogNormalize", scale.factor = 10000)
 
 # Find variable features
-pbmc <- FindVariableFeatures(pbmc, selection.method = "vst", nfeatures = 500)
+pbmc <- FindVariableFeatures(pbmc, selection.method = "vst", nfeatures = 2000)
 top10 <- head(VariableFeatures(pbmc), 10)
 plot1 <- VariableFeaturePlot(pbmc)
-plot1 <- LabelPoints(plot = plot1, points = top10, repel = TRUE)
+plot2 <- LabelPoints(plot = plot1, points = top10, repel = TRUE)
 plot1
-rm(top10, plot1)
+plot2
+rm(top10, plot1, plot2)
 
 # Scale data
-pbmc <- ScaleData(pbmc)
+all.genes <- rownames(pbmc)
+pbmc <- ScaleData(pbmc, features = all.genes)
 ```
 
 # Data exploration & visualization
@@ -328,7 +350,7 @@ DimPlot(pbmc, reduction = "umap", label = TRUE)
 You can save the object at this point so that it can easily be loaded back in without having to rerun the computationally intensive steps performed above, or easily shared with collaborators.
 
 ```{r}
-saveRDS(pbmc, file = "./output/pbmc_tutorial.rds")
+saveRDS(pbmc, file = "./output/obj_exercise_1.rds")
 ```
 
 ## Finding differentially expressed features (cluster biomarkers)
@@ -350,6 +372,7 @@ head(cluster5.markers, n = 5)
 ```
 
 ```{r fig.height=8}
+DimPlot(pbmc, reduction = "umap", label = TRUE)
 VlnPlot(pbmc, features = c("MS4A1", "CD79A", "NKG7", "CD8A", "CD8B"), ncol = 2)
 ```
 
@@ -374,12 +397,55 @@ pbmc.markers %>%
 DoHeatmap(pbmc, features = top10$gene) + NoLegend()
 ```
 
-```{r "Load solutions (SPOILER ALERT)"}
+# Exercises
+
+## 1. Identify cluster 4 and give it a name
+
+-   Can you guess what cell type cluster 4 is?
+-   Tip: pick one or two marker genes that most strongly differentiate it from all other clusters and google it. Or even better:\
+    A very good resource for protein and RNA profiles is the [Human Protein Atlas](https://www.proteinatlas.org/)\
+    For example: [Human Protein Atlas result for gene "S100A9" expression in immune cells](https://www.proteinatlas.org/ENSG00000163220-S100A9/immune+cell)
+-   Assign a name to the cells in cluster 4
+
+```{r}
+# Enter code here
+
+# Suggested functions:
+# - FindMarkers()
+# - VlnPlot()
+# - FeaturePlot()
+
+# Assign a new name to cluster 4 like so:
+new.cluster.ids <- c("0", "1", "2", "3", "My_new_name_for_cluster4", "5", "6", "7", "8")
+names(new.cluster.ids) <- levels(pbmc)
+pbmc <- RenameIdents(pbmc, new.cluster.ids)
+
+# Plot with your newly assigned name for cluster 4
+DimPlot(pbmc, reduction = "umap", label = TRUE, pt.size = 0.5) + NoLegend()
+
+
+```
+
+## 2. Identify and assign all other clusters too
+
+```{r}
+# Enter code here
+
+
+
+
+```
+
+# \-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\--
+
+# Solution
+
+```{r paged.print=FALSE}
 solutions_df <- readRDS('./output/1_Solutions.rds')
 solutions_df
 ```
 
-```{r "Apply and plot solutions (SPOILER ALERT)"}
+```{r}
 new.cluster.ids <- solutions_df$Cell.Type
 names(new.cluster.ids) <- levels(pbmc)
 pbmc <- RenameIdents(pbmc, new.cluster.ids)
