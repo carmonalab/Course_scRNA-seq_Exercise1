@@ -1,0 +1,251 @@
+---
+title: "Exercise 1"
+output: 
+  html_document: 
+    number_sections: true
+    toc: true
+---
+
+This script was used to prepare the dataset for exercise 2
+
+```{r, message=FALSE, warning=F, results=FALSE}
+
+# Load the environment and libraries
+renv::restore() # Run once, when you download a project folder and want to install all dependencies.
+library(Seurat)
+library(ggplot2)
+library(dplyr)
+```
+
+# Load the data
+
+```{r, message=FALSE, warning=F}
+# Download the content from:
+# https://www.dropbox.com/home/CSI/teaching/GeneExpression_2023/sc_data/export/BC_counts
+# Zipped for convenience:
+zipfile = "./data/exercise_2.zip"
+unzip_path = "./data/exercise_2/"
+
+if(!dir.exists(unzip_path)){
+  download.file(url = "https://www.dropbox.com/scl/fi/sqp3x7pdfcam9iibypsv5/exercise_2.zip?rlkey=8kzct7u49vjlba815f5agm20z&dl=1",
+              destfile = zipfile)
+  unzip(zipfile = zipfile, exdir = unzip_path)
+}
+
+# Load the dataset
+brca.data = ReadMtx(paste0(unzip_path, "matrix.mtx"),
+                    paste0(unzip_path, "barcodes.tsv"),
+                    paste0(unzip_path, "genes.tsv"))
+
+# Load the metadata
+meta <- read.csv(paste0(unzip_path, "2103-Breastcancer_metadata.csv"))
+
+obj <- CreateSeuratObject(counts = brca.data, project = "brca",
+                          min.cells = 3, min.features = 200)
+
+# Initialize the Seurat object with the raw (non-normalized) data.
+obj <- AddMetaData(object = obj, metadata = meta$CellType, col.name = "ManualAnnotation")
+table(obj$ManualAnnotation)
+
+obj_list <- SplitObject(obj, split.by = "orig.ident")
+for (i in 1:length(obj_list)) {
+  nr_cells_reduced <- round(dim(obj_list[[i]])[2] / 10) 
+  obj_list[[i]] <- subset(x = pbmc, downsample = nr_cells_reduced)
+}
+
+obj <- merge(obj_list[[1]],obj_list[2:length(obj_list)])
+
+rm(brca.data)
+```
+
+
+
+
+# QC and pre-processing
+
+## Quality control (QC)
+
+```{r paged.print=FALSE}
+# The [[ operator can add columns to object metadata. This is a great place to stash QC stats
+obj[["percent.mt"]] <- PercentageFeatureSet(obj, pattern = "^MT-")
+
+# Show QC metrics for the first 5 cells
+head(obj@meta.data, 10)
+```
+
+We visualize QC metrics, and use these to filter cells.
+
+```{r, fig.width=10}
+# Visualize QC metrics as a violin plot
+VlnPlot(obj, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3)
+VlnPlot(obj, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3, pt.size = 0)
+
+# FeatureScatter is typically used to visualize feature-feature relationships, but can be used for anything calculated by the object, i.e. columns in object metadata, PC scores etc.
+# Compute the ratio of number of genes/features and number of counts/UMIs
+plot1 <- FeatureScatter(obj, feature1 = "nCount_RNA", feature2 = "percent.mt") & NoLegend()
+plot2 <- FeatureScatter(obj, feature1 = "nCount_RNA", feature2 = "nFeature_RNA") & NoLegend()
+
+plot1 + plot2
+rm(plot1, plot2)
+```
+
+-   What do you notice?
+
+```{r warning=FALSE, fig.width=10}
+sample.size.before <- sort(table(obj$orig.ident))
+sample.size.before
+barplot(sort(table(obj$orig.ident)), las=2)
+
+nFeature_RNA_maxthreshold <- 2500
+mito_threshold_perc <- 5
+
+# Seurat plots can be easily modified with the popular ggplots2 library by chaining it with the "&" operator
+plot1 <- VlnPlot(obj, features = "nFeature_RNA", pt.size = 0) &
+  geom_hline(yintercept = c(200, nFeature_RNA_maxthreshold), linetype='dashed', col = 'red') & NoLegend()
+plot2 <- VlnPlot(obj, features = "nCount_RNA", pt.size = 0) & NoLegend()
+plot3 <- VlnPlot(obj, features = "percent.mt", pt.size = 0) &
+  geom_hline(yintercept = mito_threshold_perc, linetype='dashed', col = 'red') & NoLegend()
+patchwork::wrap_plots(plot1, plot2, plot3, ncol = 3)
+rm(plot1, plot2, plot3)
+
+# Subset data according to our filter creteria
+subset_test <- subset(obj,
+                      subset = nFeature_RNA > 200 & nFeature_RNA < nFeature_RNA_maxthreshold &
+                        percent.mt < mito_threshold_perc)
+
+# FeatureScatter is typically used to visualize feature-feature relationships, but can be used for anything calculated by the object, i.e. columns in object metadata, PC scores etc.
+plot1 <- FeatureScatter(subset_test,
+                        feature1 = "nCount_RNA",
+                        feature2 = "percent.mt") & NoLegend()
+plot2 <- FeatureScatter(subset_test,
+                        feature1 = "nCount_RNA",
+                        feature2 = "nFeature_RNA") & NoLegend()
+plot1 + plot2
+rm(plot1, plot2)
+
+sample.size.after <- sort(table(subset_test$orig.ident))
+sample.size.after
+barplot(sort(table(subset_test$orig.ident)), las=2)
+
+barplot(sort(sample.size.after/sample.size.before), las=2)
+```
+
+-   Do you think these are appropriate filter criteria for percent.mt? Why?\
+    -\> Choose a better threshold
+
+-   Do you think these are appropriate filter criteria for nFeature_RNA? Why?\
+    -\> Choose a better threshold
+
+-   Do you think it makes sense to include/exclude samples with very low cell numbers? Why yes? Why not?\
+    Do you think something might be fishy about them?\
+    What situations/reasons when it makes sense to exclude certain samples?
+
+### Apply the final threshold filter
+
+```{r warning=FALSE, fig.width=10}
+nFeature_RNA_maxthreshold <- 4500
+mito_threshold_perc <- 12
+
+# Subset data according to the filter criteria
+obj <- subset(obj,
+              subset = nFeature_RNA > 200 & nFeature_RNA < nFeature_RNA_maxthreshold &
+                percent.mt < mito_threshold_perc)
+
+```
+
+## Pre-processing
+
+```{r, warning=FALSE}
+# Normalize data
+obj <- NormalizeData(obj, normalization.method = "LogNormalize", scale.factor = 10000)
+
+# Find variable features
+obj <- FindVariableFeatures(obj, selection.method = "vst", nfeatures = 500)
+top10 <- head(VariableFeatures(obj), 10)
+plot1 <- VariableFeaturePlot(obj)
+plot1 <- LabelPoints(plot = plot1, points = top10, repel = TRUE)
+plot1
+rm(top10, plot1)
+
+# Scale data
+obj <- ScaleData(obj)
+```
+
+-   Do you notice something in the name of the top most variable genes?
+
+-   What are these genes? Can you guess what physiological process is involved, given that we look at breast cancer (disease)?
+
+# Data exploration & visualization
+
+## Performing linear dimensionality reduction by PCA
+
+```{r warning=FALSE, fig.height=7}
+obj <- RunPCA(obj, features = VariableFeatures(object = obj))
+
+# Examine and visualize PCA results a few different ways
+print(obj[["pca"]], dims = 1:5, nfeatures = 5)
+VizDimLoadings(obj, dims = 1:2, reduction = "pca")
+DimPlot(obj, reduction = "pca")
+DimHeatmap(obj, dims = 1, cells = 500, balanced = TRUE)
+DimHeatmap(obj, dims = 2, cells = 500, balanced = TRUE)
+```
+
+-   Depending on the parameters you chose (number of variable genes, number of dimensions) some of the following genes might pop up to be among the most important features in PC1 and PC2, explaining the largest part of variance in your data:
+
+    -   COL1A1, COL1A2, COL8A1, COL10A1 and other collagens
+
+    -   CD14, CD68, CD163, C1QA, C1QB, C1QC
+
+    -   CD79A, MS4A1
+
+    -   CXCL10, CCL8, CXCL8, CCL3, CCL2, IL1RN, IL1B
+
+-   Which cell types are associated with the above genes?
+
+-   Does each PCA explain one cell type? Is it obvious what a specific PCA dimension represents?
+
+## Determine the dimensionality of the data
+
+How many dimensions would you use? Are 10 enough?
+
+-   Try to change the number of variable genes or number of dimensions. How does this affect the data?
+
+```{r}
+ElbowPlot(obj, ndims=50)
+```
+
+TIP: from our experience, it is better to test a few values and [**include rather more than less PCs**]{.underline}. This depends on your data. Including too few principal components might result in missing out on a low abundant cell population. Using excessively many dimensions on the other hand might result in including unwanted noise which does not explain any meaningful variance.
+
+## Clustering
+
+Next, we perform K-nearest neighbor (KNN) clustering, using the previously determined dimensionality of the dataset (e.g. first 30 PCs).
+
+Do you think PCA is a good visualization method for scRNA-seq data as compared UMAP?
+
+Which do you think is better? Why?
+
+```{r warning=FALSE}
+obj <- FindNeighbors(obj, dims = 1:30)
+obj <- FindClusters(obj, resolution = 0.5)
+
+# Look at cluster IDs of the first 5 cells
+head(Idents(obj), 5)
+
+# For comparison, this is how the cluters look in the linear PCA space
+DimPlot(obj, reduction = "pca", label = TRUE)
+```
+
+## Run non-linear dimensional reduction (UMAP)
+
+```{r warning=FALSE}
+obj <- RunUMAP(obj, dims = 1:3)
+DimPlot(obj, reduction = "umap", label = TRUE)
+obj <- RunUMAP(obj, dims = 1:10)
+DimPlot(obj, reduction = "umap", label = TRUE)
+obj <- RunUMAP(obj, dims = 1:30)
+DimPlot(obj, reduction = "umap", label = TRUE)
+obj <- RunUMAP(obj, dims = 1:50)
+DimPlot(obj, reduction = "umap", label = TRUE)
+```
+
+You can save the object at this point so that it can easily be loaded back in without having to rerun the computationally intensive steps performed above, or easily shared with collaborators.
