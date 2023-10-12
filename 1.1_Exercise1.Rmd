@@ -92,8 +92,8 @@ rm(renv.lock_relative_file_path, file_content)
 # In case you get an error about "rcppArmadillo" not being installed, please install it manually.
 
 # Load the whole environment with the "renv" package function renv::restore()
-# renv::init() # Used only one time after creating a new project. You don't need to run it.
-# renv::snapshot() # Done when installing additional packages. You don't need to run it.
+# renv::init() # Used only one time after creating a new project. You don't need to run it now.
+# renv::snapshot() # Done when installing additional packages. You don't need to run it now.
 renv::restore() # Run once, when you download a project folder and want to install all dependencies.
 
 # When asked to activate the project, type "y" in the console and press the Enter key.

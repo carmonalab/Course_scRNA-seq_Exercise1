@@ -1,0 +1,303 @@
+---
+title: "Exercise 1"
+output: 
+  html_document: 
+    number_sections: true
+    toc: true
+---
+
+# Exercise 2
+
+# Introduction
+
+In the second exercise, you will apply what you learnt in exercise 1 to annotate a breast cancer dataset.
+
+```{r, message=FALSE, warning=F, results=FALSE}
+
+# Load the environment and libraries
+# remotes::install_github("carmonalab/scGate",ref="7a3576d")
+# remotes::install_github("carmonalab/SignatuR",ref="b1050ae32a600b986f14db236f8d45756aaee05b")
+# remotes::install_github("carmonalab/STACAS",ref="05fa74d")
+library(Seurat)
+library(scGate)
+library(SignatuR)
+library(STACAS)
+library(ggplot2)
+library(dplyr)
+library(patchwork)
+library(parallel)
+```
+
+# Set paths
+```{r}
+my_seed <- 321
+set.seed(my_seed)
+
+root <- getwd()
+
+path_data <- file.path(root, "data")
+dir.create(file.path(path_data))
+path_output <- file.path(root, "output")
+dir.create(file.path(path_output))
+path_plots <- file.path(root, "plots")
+dir.create(file.path(path_plots))
+```
+
+# Download the data
+
+```{r, message=FALSE, warning=F}
+# Download the compressed .zip file (too large for GitHub)
+destfile <- file.path(path_data, "exercise_2.zip")
+
+if (!file.exists(destfile)) {
+  download.file(url = "https://www.dropbox.com/scl/fi/sqp3x7pdfcam9iibypsv5/exercise_2.zip?rlkey=8kzct7u49vjlba815f5agm20z&dl=1",
+                destfile = destfile)
+  
+  # Unzip file
+  unzip(zipfile = destfile, exdir = path_data)
+}
+rm(destfile)
+```
+
+# Load the data
+
+```{r, message=FALSE, warning=F}
+brca.data = ReadMtx(file.path(path_data, "exercise_2/matrix.mtx"),
+                    file.path(path_data, "exercise_2/barcodes.tsv"),
+                    file.path(path_data, "exercise_2/genes.tsv"))
+
+# Initialize the Seurat object with the raw (non-normalized data).
+obj <- CreateSeuratObject(counts = brca.data, project = "brca",
+                          min.cells = 3, min.features = 200)
+
+# For the sake of speed and RAM memory availability in some laptops, we use just a small part of the dataset for this exercise
+obj <- subset(obj, downsample=500)
+obj
+
+rm(brca.data)
+gc()
+```
+
+# QC and pre-processing
+
+## Quality control (QC)
+
+```{r paged.print=FALSE}
+# The [[ operator can add columns to object metadata. This is a great place to stash QC stats
+obj[["percent.mt"]] <- PercentageFeatureSet(obj, pattern = "^MT-")
+
+# Show QC metrics for the first 5 cells
+head(obj@meta.data, 5)
+```
+
+In the example below, we visualize QC metrics, and use these to filter cells.
+
+```{r, fig.width = 10}
+# Visualize QC metrics as a violin plot
+VlnPlot(obj, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3)
+VlnPlot(obj, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3, pt.size = 0) # remove points to see distribution better
+
+# FeatureScatter is typically used to visualize feature-feature relationships, but can be used for anything calculated by the object, i.e. columns in object metadata, PC scores etc.
+plot1 <- FeatureScatter(obj, feature1 = "nCount_RNA", feature2 = "percent.mt") & NoLegend()
+plot2 <- FeatureScatter(obj, feature1 = "nCount_RNA", feature2 = "nFeature_RNA") & NoLegend()
+plot1 + plot2
+rm(plot1, plot2)
+```
+
+## How many cells per sample?
+
+```{r}
+sample.size.pre <- sort(table(obj$orig.ident))
+sample.size.pre
+barplot(sort(sample.size.pre), las=2)
+```
+
+-   Adjust and select appropriate nFeature_RNA upper threshold
+
+-   Adjust and select appropriate percent.mt threshold
+
+```{r warning=FALSE}
+# Seurat plots can be easily modified with the popular ggplots2 library by chaining it with the "&" operator
+thresh_nFeature_RNA <- c(200, 5000)
+thresh_percent.mt <- 17
+
+plot1 <- VlnPlot(obj, features = "nFeature_RNA", pt.size = 0) &
+  geom_hline(yintercept = thresh_nFeature_RNA, linetype='dashed', col = 'red') & NoLegend()
+plot2 <- VlnPlot(obj, features = "nCount_RNA", pt.size = 0) & NoLegend()
+plot3 <- VlnPlot(obj, features = "percent.mt", pt.size = 0) &
+  geom_hline(yintercept = thresh_percent.mt, linetype='dashed', col = 'red') & NoLegend()
+patchwork::wrap_plots(plot1, plot2, plot3, ncol = 3)
+rm(plot1, plot2, plot3)
+```
+
+## Subset to filter out low quality cells
+
+```{r warning=FALSE}
+# Subset data according to our filter creteria
+obj <- subset(obj,
+              subset =
+                nFeature_RNA > thresh_nFeature_RNA[1] &
+                nFeature_RNA < thresh_nFeature_RNA[2] &
+                percent.mt < thresh_percent.mt)
+
+VlnPlot(obj, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3, pt.size = 0)
+plot1 <- FeatureScatter(obj, feature1 = "nCount_RNA", feature2 = "percent.mt") & NoLegend()
+plot2 <- FeatureScatter(obj, feature1 = "nCount_RNA", feature2 = "nFeature_RNA") & NoLegend()
+plot1 + plot2
+rm(plot1, plot2)
+```
+
+## How many cells per sample after QC?
+
+```{r}
+sample.size <- table(obj$orig.ident)[names(sample.size.pre)]
+sample.size
+barplot(sort(sample.size), las=2)
+sample.size.filterRatio <- round((sample.size.pre - sample.size)/sample.size.pre*100,2)
+sample.size.filterRatio
+barplot(sample.size.filterRatio[names(sort(sample.size))], las=2)
+```
+
+## Save quality-controlled dataset
+
+```{r}
+saveRDS(obj, file.path(path_output, "exercise2_QCed.rds"), compress = FALSE) # compress = FALSE takes more disk space but makes saving and loading a lot faster
+```
+
+# Automated cell type annotation
+
+In the previous exercise you annotated clusters of cells manually. You did so by checking which genes are most highly expressed in a cluster and prefereably not in all others, i.e. which specific gene expression characterizes your cell type of interest. As this is very tedious and repetitive, many tools have been developed to automate this process. The basic principle is the same: cell types are characterized by a specific gene expression pattern. Some tools use single genes or a small set of highly specific expression markers. Other tools use extensive sets of genes, called "signatures".
+
+However, each method comes with its own advantages, limitations and drawbacks. For example, on one hand, some annotation tools can annotate a wide range of cell types across many tissues but lack the resolution to annotate subtypes. On the other hand, some packages are highly focused on a specific cell type but can go very deep and are able to very accurately annotate them and their subtypes at high-resolution.
+
+In this exercise, you will apply [scGate](https://github.com/carmonalab/scGate), an R package that automatizes the typical manual marker-based approach to cell type annotation, to enable accurate and intuitive purification of a cell population, without requiring reference gene expression profiles or training data. It's mostly focused on immune cells and other cell types found in cancer.
+
+scGate uses a [database of expert-selected markers](https://github.com/carmonalab/scGate_models/blob/master/human/generic/master_table.tsv) and hierarchical gating. For example, you identify immune cells as CD45+. However, immune cells can be further sub-classified into e.g. CD45+CD8+ cells and others that are CD45+CD8-. B cells for example are CD45+CD8-CD20+ and so on.
+
+Hierarchical gating is very good if you have very clear binary markers that are either positive/negative. But what if you have gradients of gene expression levels? Or if you go very deep: if you want to look at different CD8 subtypes? At some point, you will run out of markers that are distinctly positive/negative. In this case, gene expression profiles can be very useful for further refinement (e.g. [this tool](https://github.com/carmonalab/ProjecTILs)).
+
+![](images/scGate_hierarchical_gating.png)
+
+## Run scGate models to annotate cell types
+
+### Select scGate models (cell types)
+
+```{r, fig.width=10, fig.height=10}
+#Get scGate database of pre-defined gating models
+scGate_models_DB <- get_scGateDB(branch = "master", verbose = T, force_update = TRUE)
+models.TME <- scGate_models_DB$human$TME_HiRes
+```
+
+### Run scGate
+We run scGate on single samples to prevent batch effects between samples.
+So, we split the object into a list of objects, one for each sample
+
+We will then find the highly variable features for each sample separately and then combine the ones that are consistently found variable across all samples.
+This is in order to prevent a bias if all variable features would be selected from only one or a few samples.
+
+Additionally, we want to exclude variable genes like cell cycle genes that might be variable for each cell type (at some point in time) but do not contribute to distinguish BETWEEN cell types. Also genes like heat-shock proteins might vary, depending on cell stress, or immunoglobulin or TCR for immune cells but are not helpful to distinguish BETWEEN cell types.
+```{r}
+# Split object into list of objects (by sample)
+Idents(obj) <- "orig.ident"
+obj.list <- SplitObject(obj)
+
+# To speed things up, we only keep the first 5 samples for further analysis
+obj.list <- obj.list[1:5]
+
+cache_filename <- file.path(path_output,"exercise2_scGate_annotated_list.rds")
+
+nfeatures <- 2000
+ndim <- 30
+my.genes.blocklist <- GetSignature(SignatuR$Hs)[c("Pseudogenes", "HSP", "Non-coding", "cellCycle.G1S", "cellCycle.G2M", "Mito", "Ribo", "TCR", "Immunoglobulins")]
+
+if (file.exists(cache_filename)) {
+  obj.list <- readRDS(cache_filename)
+} else {
+  ncores <- parallel::detectCores()
+  for (sample in names(obj.list)) {
+    obj.list[[sample]] <- NormalizeData(obj.list[[sample]])
+    obj.list[[sample]] <- scGate(obj.list[[sample]], model=models.TME, ncores = ncores-1)
+    obj.list[[sample]] <- FindVariableFeatures.STACAS(obj.list[[sample]], nfeat=nfeatures*2, genesBlockList=my.genes.blocklist)
+    # here we ask for *2 variable features, and then we'll select those nfeatures that are consistently variable across datasets
+    obj.list[[sample]] <- ScaleData(obj.list[[sample]])
+    obj.list[[sample]] <- RunPCA(obj.list[[sample]], ndims.print = 1:5, nfeatures.print = 5)
+    obj.list[[sample]] <- RunUMAP(obj.list[[sample]], reduction = "pca", dims = 1:ndim, seed.use=my_seed)
+  }
+  
+  saveRDS(obj.list, cache_filename)
+}
+```
+
+```{r}
+pll.s <- list()
+for (sample in names(obj.list)){
+  (length(table(obj.list[[sample]]$scGate_multi)) == 0) && next
+  pll.s[[sample]] <- DimPlot(obj.list[[sample]], reduction = "umap", group.by = "scGate_multi", label=T, raster = FALSE ) + theme(aspect.ratio=1) + ggtitle(sample)
+}
+pll.s.w <- wrap_plots(pll.s)
+ggsave(plot = pll.s.w, file.path(path_plots,"UMAP_scGate_broad_classification_perSample.png"),width = 20, height = 20, limitsize = F)
+
+rm(pll.s, pll.s.w)
+gc()
+```
+
+## Merge list of objects back into one object
+```{r, fig.width=10, fig.height=10}
+obj <- merge(obj.list[[1]],obj.list[2:length(obj.list)])
+
+obj@misc$batch.metadata <- obj.list[[1]]@misc$batch.metadata
+hvg <- SelectIntegrationFeatures(obj.list, nfeatures = nfeatures) # we obtained highly variable genes that are consistent across samples
+obj@assays$RNA@var.features <- hvg
+
+rm(obj.list)
+gc()
+```
+
+# Run pre-processing on complete obj
+```{r}
+obj <- obj |> NormalizeData() |> ScaleData() |> RunPCA(npcs=ndim) |> RunUMAP(dims = 1:ndim)
+```
+
+# Plot UMAP
+```{r}
+DimPlot(obj, reduction = "umap", group.by = "orig.ident") + theme(aspect.ratio=1)
+ggsave(file.path(path_plots,"UMAP_full_by_sample.png"), width = 10, height = 10)
+DimPlot(obj, reduction = "umap", group.by = "scGate_multi", label = TRUE) + theme(aspect.ratio=1)
+ggsave(file.path(path_plots,"UMAP_full_by_annotation.png"), width = 10, height = 10)
+```
+
+# Visualize the expression of some genes
+```{r, fig.height=20, fig.width=20}
+myFeatures <- c("PTPRC","CD2","FOXP3","CD4","CD8A","SPI1","CD79A","MKI67","COL1A1","FCER1G","APOE","C1QB","MS4A1","RGS13","CSF3R","KLRD1","S100A9","S100A8") # just to explore
+FeaturePlot(obj, reduction = "umap", features = myFeatures, coord.fixed=T, ncol=5, order = T) 
+ggsave(file.path(path_plots,"UMAP_features.png"),width = 40, height = 30)
+```
+
+
+# TEST
+```{r}
+obj.list <- readRDS(cache_filename)
+obj.sample_from_other_study1 <- readRDS("Pre_P002_t.rds")
+obj.sample_from_other_study1 <- subset(obj.sample_from_other_study1, downsample=500)
+# obj.sample_from_other_study2 <- readRDS("P14_Post-Tx.rds")
+# obj.sample_from_other_study2 <- subset(obj.sample_from_other_study2, downsample=500)
+
+obj.list[["study1_sample"]] <- obj.sample_from_other_study1
+# obj.list[["study2_sample"]] <- obj.sample_from_other_study2
+rm(obj.sample_from_other_study1)
+gc()
+
+obj.multi_study <- merge(obj.list[[1]],obj.list[2:length(obj.list)])
+
+
+hvg <- SelectIntegrationFeatures(obj.list, nfeatures = nfeatures) # we obtained highly variable genes that are consistent across samples
+obj.multi_study@assays$RNA@var.features <- hvg
+
+rm(obj.list)
+gc()
+
+obj.multi_study <- obj.multi_study |> NormalizeData() |> ScaleData() |> RunPCA(npcs=ndim) |> RunUMAP(dims = 1:ndim)
+
+DimPlot(obj.multi_study, reduction = "umap", group.by = "orig.ident") + theme(aspect.ratio=1)
+DimPlot(obj.multi_study, reduction = "umap", group.by = "scGate_multi", label = TRUE) + theme(aspect.ratio=1)
+```
