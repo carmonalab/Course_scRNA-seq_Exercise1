@@ -3,3 +3,8 @@
 .RData
 .Ruserdata
 /output/pbmc_tutorial.rds
+/output/exercise2_QCed.rds
+/output/exercise2_scGate_annotated_list.rds
+/output/obj_exercise_1.rds
+/data/*
+/plots/

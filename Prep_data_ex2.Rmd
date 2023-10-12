@@ -20,6 +20,12 @@ library(dplyr)
 # Load the data
 
 ```{r, message=FALSE, warning=F}
+path <- file.path("~", "Dropbox", "CSI", "teaching", "GeneExpression_2023", "sc_data")
+brca.data = ReadMtx(file.path(path, "matrix.mtx"),
+                    file.path(path, "barcodes.tsv"),
+                    file.path(path, "genes.tsv"))
+
+
 # Download the content from:
 # https://www.dropbox.com/home/CSI/teaching/GeneExpression_2023/sc_data/export/BC_counts
 # Zipped for convenience:
@@ -56,6 +62,9 @@ for (i in 1:length(obj_list)) {
 obj <- merge(obj_list[[1]],obj_list[2:length(obj_list)])
 
 rm(brca.data)
+
+
+/Users/christianhalter/Library/CloudStorage/Dropbox/CSI/Standardized_SingleCell_Datasets/Zheng_2021_36959212/output/Zheng_2021_36959212_light.rds
 ```
 
 
