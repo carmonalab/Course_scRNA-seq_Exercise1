@@ -37,34 +37,32 @@ root <- getwd()
 
 path_data <- file.path(root, "data/Exercise2")
 dir.create(file.path(path_data))
-path_output <- file.path(root, "output")
+path_output <- file.path(root, "output/Exercise2")
 dir.create(file.path(path_output))
-path_plots <- file.path(root, "plots")
+path_plots <- file.path(root, "plots/Exercise2")
 dir.create(file.path(path_plots))
-```
-
-# Download the data
-
-```{r, message=FALSE, warning=F}
-# Download the compressed .zip file (too large for GitHub)
-# destfile <- file.path(path_data, "exercise_2.zip")
-# 
-# if (!file.exists(destfile)) {
-#   download.file(url = "https://www.dropbox.com/scl/fi/sqp3x7pdfcam9iibypsv5/exercise_2.zip?rlkey=8kzct7u49vjlba815f5agm20z&dl=1",
-#                 destfile = destfile)
-#   
-#   # Unzip file
-#   unzip(zipfile = destfile, exdir = path_data)
-# }
-# rm(destfile)
 ```
 
 # Load the data
 
+## Download the data
+If not done before
+```{r}
+# Download the Peripheral Blood Mononuclear Cells (PBMC) dataset
+destfile <- file.path(path_data, "Archive.zip")
+if (!exists(destfile)) {
+  download.file(url = "https://www.dropbox.com/scl/fi/frnqtdn97ybw2s8g2k9xj/Archive.zip?rlkey=5zx2i97nzvce98snjsq77ta56&dl=1",
+              destfile = destfile)
+  # Decompress file
+  unzip(destfile, exdir = path_data)
+}
+rm(destfile)
+```
+
+## Load data and create a Seurat object
+
 ```{r, message=FALSE, warning=F}
-brca.data = ReadMtx(file.path(path_data, "matrix.mtx"),
-                    file.path(path_data, "barcodes.tsv"),
-                    file.path(path_data, "genes.tsv"))
+brca.data = Read10X(file.path(path_data))
 
 # Initialize the Seurat object with the raw (non-normalized data).
 obj <- CreateSeuratObject(counts = brca.data, project = "brca",
@@ -304,4 +302,52 @@ obj.multi_study <- obj.multi_study |> NormalizeData() |> ScaleData() |> RunPCA(n
 
 DimPlot(obj.multi_study, reduction = "umap", group.by = "orig.ident") + theme(aspect.ratio=1)
 DimPlot(obj.multi_study, reduction = "umap", group.by = "scGate_multi", label = TRUE) + theme(aspect.ratio=1)
+```
+
+
+```{r}
+obj.CD4T <- subset(obj, subset = `scGate_multi` == "CD4T")
+obj.CD4T <- obj.CD4T |> NormalizeData() |> FindVariableFeatures() |> ScaleData() |> RunPCA(npcs=30) |> RunUMAP(dims = 1:30)
+DimPlot(obj.CD4T, reduction = "pca", group.by = "orig.ident") + theme(aspect.ratio=1)
+
+obj.CD4T.multi <- subset(obj.multi_study, subset = `scGate_multi` == "CD4T")
+obj.CD4T.multi <- obj.CD4T.multi |> NormalizeData() |> FindVariableFeatures() |> ScaleData() |> RunPCA(npcs=30) |> RunUMAP(dims = 1:30)
+DimPlot(obj.CD4T.multi, reduction = "pca", group.by = "orig.ident") + theme(aspect.ratio=1)
+```
+
+
+```{r}
+Idents(obj.CD4T) <- "orig.ident"
+dist.matrix <- dist(Embeddings(object = obj.CD4T[["pca"]])[, 1:ndim])
+clusters <- obj.CD4T$orig.ident
+sil <- cluster::silhouette(as.numeric(as.factor(clusters)), dist = dist.matrix)
+obj.CD4T$sil <- sil[, "sil_width"]
+
+sample_sil_single_study <- c()
+for (sample in unique(obj.CD4T$orig.ident)) {
+  a <- mean(obj.CD4T$sil[which(obj.CD4T$orig.ident == sample)])
+  sample_sil_single_study <- append(sample_sil_single_study, a)
+}
+sample_sil_single_study <- setNames(sample_sil_single_study, unique(obj.CD4T$orig.ident)) 
+sample_sil_single_study
+mean(sample_sil_single_study)
+
+factoextra::fviz_silhouette(sil, ggtheme = theme_classic())
+
+Idents(obj.CD4T.multi) <- "orig.ident"
+dist.matrix <- dist(Embeddings(object = obj.CD4T.multi[["pca"]])[, 1:ndim])
+clusters <- obj.CD4T.multi$orig.ident
+sil <- cluster::silhouette(as.numeric(as.factor(clusters)), dist = dist.matrix)
+obj.CD4T.multi$sil <- sil[, "sil_width"]
+
+sample_sil_multi_study <- c()
+for (sample in unique(obj.CD4T.multi$orig.ident)) {
+  a <- mean(obj.CD4T.multi$sil[which(obj.CD4T.multi$orig.ident == sample)])
+  sample_sil_multi_study <- append(sample_sil_multi_study, a)
+}
+sample_sil_multi_study <- setNames(sample_sil_multi_study, unique(obj.CD4T.multi$orig.ident)) 
+sample_sil_multi_study
+mean(sample_sil_multi_study)
+
+factoextra::fviz_silhouette(sil, ggtheme = theme_classic(), print.summary = TRUE)
 ```
