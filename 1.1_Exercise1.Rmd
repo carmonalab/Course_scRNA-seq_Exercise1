@@ -104,13 +104,41 @@ library(ggplot2)
 library(dplyr)
 ```
 
-# Loading the data
+# Set paths
+
+```{r}
+# Define file paths and create folders
+root <- getwd()
+path_data <- file.path(root, "data/Exercise1")
+dir.create(file.path(path_data), recursive = TRUE)
+path_output <- file.path(root, "output/Exercise1")
+dir.create(file.path(path_output), recursive = TRUE)
+path_plots <- file.path(root, "plots/Exercise1")
+dir.create(file.path(path_plots), recursive = TRUE)
+```
+
+# Load the data
+## Download the data
+If not done before
+```{r}
+# Download the Peripheral Blood Mononuclear Cells (PBMC) dataset
+destfile <- file.path(path_data, "Archive.zip")
+if (!exists(destfile)) {
+  download.file(url = "https://www.dropbox.com/scl/fi/t535fs01a8zgevw6d4v94/Archive.zip?rlkey=5hglzvg3qpkw4tkis8oyoyqkd&dl=1",
+              destfile = destfile)
+  # Decompress file
+  unzip(destfile, exdir = path_data)
+}
+rm(destfile)
+```
 
 Note: this Peripheral Blood Mononuclear Cells (PBMC) dataset from 10X is a very "clean" dataset. In exercise 2 of this course you will have a look at the breast cancer scRNA-seq data that you shortly looked at before during David Gfeller's part of the course. It is a more representative "real-world" dataset.
 
+## Load data and create a Seurat object
+
 ```{r, message=FALSE, warning=F}
 # Load the Peripheral Blood Mononuclear Cells (PBMC) dataset
-pbmc.data <- Read10X(data.dir = "./data/Exercise1/")
+pbmc.data <- Read10X(data.dir = path_data)
 
 # Initialize the Seurat object with the raw (non-normalized) data.
 # We only include genes that are found in at least 3 cells and cells that have at least 200 features=genes
@@ -350,7 +378,7 @@ DimPlot(pbmc, reduction = "umap", label = TRUE)
 You can save the object at this point so that it can easily be loaded back in without having to rerun the computationally intensive steps performed above, or easily shared with collaborators.
 
 ```{r}
-saveRDS(pbmc, file = "./output/obj_exercise_1.rds")
+saveRDS(pbmc, file = file.path(path_output, "obj_exercise1.rds"))
 ```
 
 ## Finding differentially expressed features (cluster biomarkers)
