@@ -118,8 +118,11 @@ dir.create(file.path(path_plots), recursive = TRUE)
 ```
 
 # Load the data
+
 ## Download the data
+
 If not done before
+
 ```{r}
 # Download the Peripheral Blood Mononuclear Cells (PBMC) dataset
 destfile <- file.path(path_data, "Archive.zip")
@@ -425,7 +428,7 @@ pbmc.markers %>%
 DoHeatmap(pbmc, features = top10$gene) + NoLegend()
 ```
 
-# Exercises
+# ℹ️ Exercises
 
 ## 1. Identify cluster 4 and give it a name
 
