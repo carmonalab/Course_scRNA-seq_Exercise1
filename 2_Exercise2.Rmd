@@ -8,9 +8,22 @@ output:
 
 # Exercise 2
 
+# Goals
+
+-   Apply what you learnt in Exercise 1
+
+-   Go big, automation makes it possible!\
+    -\> Use an R package for automated cell annotation across multiple samples in *one* dataset
+
+-   Combine multiple datasets
+
+    -   Learn about batch effect
+
+    -   Quantify batch effect
+
 # Introduction
 
-In the second exercise, you will apply what you learnt in exercise 1 to annotate a breast cancer dataset.
+In the second exercise, you will apply what you learnt in exercise 1 to annotate the celltypes in a breast cancer dataset (which you have seen shortly seen at the end of the Gfeller part of this course)
 
 ```{r, message=FALSE, warning=F, results=FALSE}
 
@@ -29,6 +42,7 @@ library(parallel)
 ```
 
 # Set paths
+
 ```{r}
 my_seed <- 321
 set.seed(my_seed)
@@ -46,7 +60,9 @@ dir.create(file.path(path_plots))
 # Load the data
 
 ## Download the data
+
 If not done before
+
 ```{r}
 # Download the Peripheral Blood Mononuclear Cells (PBMC) dataset
 destfile <- file.path(path_data, "Archive.zip")
@@ -109,6 +125,10 @@ sample.size.pre <- sort(table(obj$orig.ident))
 sample.size.pre
 barplot(sort(sample.size.pre), las=2)
 ```
+
+## ℹ️ Exercise
+
+### Select appropriate QC metrics
 
 -   Adjust and select appropriate nFeature_RNA upper threshold
 
@@ -187,13 +207,13 @@ models.TME <- scGate_models_DB$human$TME_HiRes
 ```
 
 ### Run scGate
-We run scGate on single samples to prevent batch effects between samples.
-So, we split the object into a list of objects, one for each sample
 
-We will then find the highly variable features for each sample separately and then combine the ones that are consistently found variable across all samples.
-This is in order to prevent a bias if all variable features would be selected from only one or a few samples.
+We run scGate on single samples to prevent batch effects between samples. So, we split the object into a list of objects, one for each sample
+
+We will then find the highly variable features for each sample separately and then combine the ones that are consistently found variable across all samples. This is in order to prevent a bias if all variable features would be selected from only one or a few samples.
 
 Additionally, we want to exclude variable genes like cell cycle genes that might be variable for each cell type (at some point in time) but do not contribute to distinguish BETWEEN cell types. Also genes like heat-shock proteins might vary, depending on cell stress, or immunoglobulin or TCR for immune cells but are not helpful to distinguish BETWEEN cell types.
+
 ```{r}
 # Split object into list of objects (by sample)
 Idents(obj) <- "orig.ident"
@@ -208,6 +228,9 @@ nfeatures <- 2000
 ndim <- 30
 my.genes.blocklist <- GetSignature(SignatuR$Hs)[c("Pseudogenes", "HSP", "Non-coding", "cellCycle.G1S", "cellCycle.G2M", "Mito", "Ribo", "TCR", "Immunoglobulins")]
 
+# As the cell annotation takes some time, we use the full power of  our modern CPUs having multiple cores
+# We run the calculation in a parallel for-loop, meaning we process several samples at once, distributed across CPU cores, one sample per core
+# For long calculation steps, it is advisable to save them afterwards, so we can just reload from this step later without needing to re-process everything
 if (file.exists(cache_filename)) {
   obj.list <- readRDS(cache_filename)
 } else {
@@ -221,7 +244,6 @@ if (file.exists(cache_filename)) {
     obj.list[[sample]] <- RunPCA(obj.list[[sample]], ndims.print = 1:5, nfeatures.print = 5)
     obj.list[[sample]] <- RunUMAP(obj.list[[sample]], reduction = "pca", dims = 1:ndim, seed.use=my_seed)
   }
-  
   saveRDS(obj.list, cache_filename)
 }
 ```
@@ -240,6 +262,7 @@ gc()
 ```
 
 ## Merge list of objects back into one object
+
 ```{r, fig.width=10, fig.height=10}
 obj <- merge(obj.list[[1]],obj.list[2:length(obj.list)])
 
@@ -252,11 +275,14 @@ gc()
 ```
 
 # Run pre-processing on complete obj
+
 ```{r}
 obj <- obj |> NormalizeData() |> ScaleData() |> RunPCA(npcs=ndim) |> RunUMAP(dims = 1:ndim)
+saveRDS(obj, file.path(path_output,"exercise2_processed_obj.rds"))
 ```
 
 # Plot UMAP
+
 ```{r}
 DimPlot(obj, reduction = "umap", group.by = "orig.ident") + theme(aspect.ratio=1)
 ggsave(file.path(path_plots,"UMAP_full_by_sample.png"), width = 10, height = 10)
@@ -265,56 +291,80 @@ ggsave(file.path(path_plots,"UMAP_full_by_annotation.png"), width = 10, height =
 ```
 
 # Visualize the expression of some genes
+
 ```{r, fig.height=20, fig.width=20}
 myFeatures <- c("PTPRC","CD2","FOXP3","CD4","CD8A","SPI1","CD79A","MKI67","COL1A1","FCER1G","APOE","C1QB","MS4A1","RGS13","CSF3R","KLRD1","S100A9","S100A8") # just to explore
 FeaturePlot(obj, reduction = "umap", features = myFeatures, coord.fixed=T, ncol=5, order = T) 
 ggsave(file.path(path_plots,"UMAP_features.png"),width = 40, height = 30)
 ```
 
+# Check for batch effects
 
-# TEST
 ```{r fig.height=10, fig.width=10}
-obj.list <- readRDS(cache_filename)
-obj.sample_from_other_study1 <- readRDS("Pre_P002_t.rds")
-obj.sample_from_other_study1 <- subset(obj.sample_from_other_study1, downsample=500)
-obj.sample_from_other_study2 <- readRDS("P14_Post-Tx.rds")
-obj.sample_from_other_study2 <- subset(obj.sample_from_other_study2, downsample=500)
-
-obj.list[["study1_sample"]] <- obj.sample_from_other_study1
-obj.list[["study1_sample"]]$orig.ident <- "study1_sample"
-obj.list[["study2_sample"]] <- obj.sample_from_other_study2
-obj.list[["study2_sample"]]$orig.ident <- "study2_sample"
-obj.list[["study2_sample"]]@meta.data[["scGate_multi"]][which(obj.list[["study2_sample"]]@meta.data[["scGate_multi"]] == "CD8TIL")] <- "CD8T"
-obj.list[["study2_sample"]]@meta.data[["scGate_multi"]][which(obj.list[["study2_sample"]]@meta.data[["scGate_multi"]] == "Bcell.NonGerminalCenter")] <- "Bcell"
-rm(obj.sample_from_other_study1, obj.sample_from_other_study2)
+# Remove obj from RAM memory
+rm(obj)
 gc()
 
-obj.multi_study <- merge(obj.list[[1]],obj.list[2:length(obj.list)])
+# Load obj.list from above
+obj.list <- readRDS(cache_filename)
 
+# Download data
+download.file("https://www.dropbox.com/scl/fi/zrf8v74tytw94lm1ex1j6/samples_from_other_studies.rds?rlkey=4yg1magn4utn9ohxr10np2pq0&dl=1",
+              file.path(path_data, "samples_from_other_studies.rds"))
+samples_from_other_studies <- readRDS(file.path(path_data, "samples_from_other_studies.rds"))
 
-hvg <- SelectIntegrationFeatures(obj.list, nfeatures = nfeatures) # we obtained highly variable genes that are consistent across samples
+obj.list.multi_study <- c(obj.list, samples_from_other_studies)
+rm(obj.list, samples_from_other_studies)
+gc()
+
+hvg <- SelectIntegrationFeatures(obj.list.multi_study, nfeatures = nfeatures) # we obtained highly variable genes that are consistent across samples
+
+obj.multi_study <- merge(obj.list.multi_study[[1]], obj.list.multi_study[2:length(obj.list.multi_study)])
 obj.multi_study@assays$RNA@var.features <- hvg
-
-rm(obj.list)
+rm(obj.list.multi_study)
 gc()
 
 obj.multi_study <- obj.multi_study |> NormalizeData() |> ScaleData() |> RunPCA(npcs=ndim) |> RunUMAP(dims = 1:ndim)
 
-DimPlot(obj.multi_study, reduction = "umap", group.by = "orig.ident") + theme(aspect.ratio=1)
 DimPlot(obj.multi_study, reduction = "umap", group.by = "scGate_multi", label = TRUE) + theme(aspect.ratio=1)
+DimPlot(obj.multi_study, reduction = "umap", group.by = "orig.ident") + theme(aspect.ratio=1)
 ```
 
+Looking at the CD4T cluster(s) in the above UMAP, it seems that the CD4 T cells from the initial dataset (orig.ident sample names starting with "sc5r") cluster together and are mixed. However, there are two distinct separate clusters of CD4 cells for the "study1_sample" and "study2_sample", respectively. Is it likely that these patients show completly different and unique CD4 T cells cell types? The "study1_sample", like the "sc5r" samples, stems from a breast tumor sample. The "study2_sample", stems from a head and neck squamous cell carcinoma (HNSCC) tumor sample.
+
+There might be some specific CD4 T cell subtypes in a different tissue/cancer but it is unlikely that all CD4 T cells from these other study samples are COMPLETELY different. After all, we all share the same CD4 T cells and subtypes. So, at least for the "study1_sample" (given that the treatment was similar) the cells should be well mixed...but they are not! Why?
+
+"Single-cell data is often compiled from multiple experiments with differences in capturing times, handling personnel, reagent lots, equipments, and even technology platforms. These differences lead to large variations or batch effects in the data, and can confound biological variations of interest during data integration. As such, effective batch-effect removal is essential. Batch effects can be highly nonlinear, making it difficult to correctly align different datasets while preserving key biological variations" ([Tran et al. 2020](https://genomebiology.biomedcentral.com/articles/10.1186/s13059-019-1850-9#:~:text=Batch%20effects%20can%20be%20highly,(scRNA%2Dseq)%20data.)).
+
+For this reason, several different tools have been developped trying to address this problem. You will learn about two of them in exercise 3. For now, lets try to find a suitable metric to quantify this batch effect, in order to later quantify to what degree we can mitigate it.
+
+## ℹ️ Exercise
+
+### Quantify the batch effect in CD4 T cells
 
 ```{r}
-obj.CD4T <- subset(obj, subset = `scGate_multi` == "CD4T")
+obj.CD4T.multi <- subset(obj.multi_study, subset = scGate_multi == "CD4T")
+obj.CD4T <- subset(obj.CD4T.multi, subset = orig.ident %in% unique(obj.multi_study@meta.data[["orig.ident"]])[1:5])
+
 obj.CD4T <- obj.CD4T |> NormalizeData() |> FindVariableFeatures() |> ScaleData() |> RunPCA(npcs=30) |> RunUMAP(dims = 1:30)
 DimPlot(obj.CD4T, reduction = "pca", group.by = "orig.ident") + theme(aspect.ratio=1)
 
-obj.CD4T.multi <- subset(obj.multi_study, subset = `scGate_multi` == "CD4T")
 obj.CD4T.multi <- obj.CD4T.multi |> NormalizeData() |> FindVariableFeatures() |> ScaleData() |> RunPCA(npcs=30) |> RunUMAP(dims = 1:30)
 DimPlot(obj.CD4T.multi, reduction = "pca", group.by = "orig.ident") + theme(aspect.ratio=1)
 ```
 
+-   What can you observe in the above PCA plots
+
+    -   The first PCA biplot shows only samples from the same "sc5r" dataset
+
+    -   The second PCA biplot shows samples from all three datasets together
+
+-   Calculate the average silhouette score (from samples) from the "sc5r" dataset
+
+    -   Create a silhouette plot, e.g. using\
+        factoextra::fviz_silhouette(sil, ggtheme = theme_classic())
+
+-   Calculate the average silhouette score (from samples) from all three datasets together
 
 ```{r}
 Idents(obj.CD4T) <- "orig.ident"
