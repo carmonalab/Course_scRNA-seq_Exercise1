@@ -35,7 +35,7 @@ set.seed(my_seed)
 
 root <- getwd()
 
-path_data <- file.path(root, "data")
+path_data <- file.path(root, "data/Exercise2")
 dir.create(file.path(path_data))
 path_output <- file.path(root, "output")
 dir.create(file.path(path_output))
@@ -47,24 +47,24 @@ dir.create(file.path(path_plots))
 
 ```{r, message=FALSE, warning=F}
 # Download the compressed .zip file (too large for GitHub)
-destfile <- file.path(path_data, "exercise_2.zip")
-
-if (!file.exists(destfile)) {
-  download.file(url = "https://www.dropbox.com/scl/fi/sqp3x7pdfcam9iibypsv5/exercise_2.zip?rlkey=8kzct7u49vjlba815f5agm20z&dl=1",
-                destfile = destfile)
-  
-  # Unzip file
-  unzip(zipfile = destfile, exdir = path_data)
-}
-rm(destfile)
+# destfile <- file.path(path_data, "exercise_2.zip")
+# 
+# if (!file.exists(destfile)) {
+#   download.file(url = "https://www.dropbox.com/scl/fi/sqp3x7pdfcam9iibypsv5/exercise_2.zip?rlkey=8kzct7u49vjlba815f5agm20z&dl=1",
+#                 destfile = destfile)
+#   
+#   # Unzip file
+#   unzip(zipfile = destfile, exdir = path_data)
+# }
+# rm(destfile)
 ```
 
 # Load the data
 
 ```{r, message=FALSE, warning=F}
-brca.data = ReadMtx(file.path(path_data, "exercise_2/matrix.mtx"),
-                    file.path(path_data, "exercise_2/barcodes.tsv"),
-                    file.path(path_data, "exercise_2/genes.tsv"))
+brca.data = ReadMtx(file.path(path_data, "matrix.mtx"),
+                    file.path(path_data, "barcodes.tsv"),
+                    file.path(path_data, "genes.tsv"))
 
 # Initialize the Seurat object with the raw (non-normalized data).
 obj <- CreateSeuratObject(counts = brca.data, project = "brca",
@@ -275,16 +275,20 @@ ggsave(file.path(path_plots,"UMAP_features.png"),width = 40, height = 30)
 
 
 # TEST
-```{r}
+```{r fig.height=10, fig.width=10}
 obj.list <- readRDS(cache_filename)
 obj.sample_from_other_study1 <- readRDS("Pre_P002_t.rds")
 obj.sample_from_other_study1 <- subset(obj.sample_from_other_study1, downsample=500)
-# obj.sample_from_other_study2 <- readRDS("P14_Post-Tx.rds")
-# obj.sample_from_other_study2 <- subset(obj.sample_from_other_study2, downsample=500)
+obj.sample_from_other_study2 <- readRDS("P14_Post-Tx.rds")
+obj.sample_from_other_study2 <- subset(obj.sample_from_other_study2, downsample=500)
 
 obj.list[["study1_sample"]] <- obj.sample_from_other_study1
-# obj.list[["study2_sample"]] <- obj.sample_from_other_study2
-rm(obj.sample_from_other_study1)
+obj.list[["study1_sample"]]$orig.ident <- "study1_sample"
+obj.list[["study2_sample"]] <- obj.sample_from_other_study2
+obj.list[["study2_sample"]]$orig.ident <- "study2_sample"
+obj.list[["study2_sample"]]@meta.data[["scGate_multi"]][which(obj.list[["study2_sample"]]@meta.data[["scGate_multi"]] == "CD8TIL")] <- "CD8T"
+obj.list[["study2_sample"]]@meta.data[["scGate_multi"]][which(obj.list[["study2_sample"]]@meta.data[["scGate_multi"]] == "Bcell.NonGerminalCenter")] <- "Bcell"
+rm(obj.sample_from_other_study1, obj.sample_from_other_study2)
 gc()
 
 obj.multi_study <- merge(obj.list[[1]],obj.list[2:length(obj.list)])
