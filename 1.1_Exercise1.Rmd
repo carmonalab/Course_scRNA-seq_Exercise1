@@ -110,7 +110,7 @@ Note: this Peripheral Blood Mononuclear Cells (PBMC) dataset from 10X is a very 
 
 ```{r, message=FALSE, warning=F}
 # Load the Peripheral Blood Mononuclear Cells (PBMC) dataset
-pbmc.data <- Read10X(data.dir = "./data/")
+pbmc.data <- Read10X(data.dir = "./data/Exercise1/")
 
 # Initialize the Seurat object with the raw (non-normalized) data.
 # We only include genes that are found in at least 3 cells and cells that have at least 200 features=genes
