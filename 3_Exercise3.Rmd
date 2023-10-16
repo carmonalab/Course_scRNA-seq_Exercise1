@@ -30,12 +30,14 @@ library(ggplot2)
 library(dplyr)
 library(patchwork)
 library(parallel)
+library(harmony)
 
 # devtools::install_github('satijalab/seurat-data')
 library(SeuratData)
 ```
 
 # Set paths
+
 ```{r}
 my_seed <- 321
 set.seed(my_seed)
@@ -49,7 +51,6 @@ dir.create(file.path(path_output))
 path_plots <- file.path(root, "plots")
 dir.create(file.path(path_plots))
 ```
-
 
 # Load the data
 
@@ -71,20 +72,107 @@ for (p in p.list.Tcell) {
 wrap_plots(p.list.Tcell, ncol = 2) & theme(aspect.ratio = 1) & NoLegend()
 ```
 
+-   What do you notice in the UMAP by celltype?
 
-# Apply batch correction
+-   Have a look at the UMAP by sequencing technology. Can you explain why the same celltype forms multiple clusters?
+
+-   Looking at the UMAP by dataset, what can you see when looking at the different datasets acquired with the inDrop technology? (the datasets called indrop1, indrop2, indrop3, indrop4 are acquired with the same technology)
+
+
+# Apply Harmony batch correction
 
 ```{r}
-panc8.list <- SplitObject(panc8, split.by = "tech")
-panc8.stacas <- Run.STACAS(panc8.list)
+panc8 <- RunHarmony(panc8, "tech")
+panc8 <- RunUMAP(panc8, reduction = "harmony", dims = 1:ndim, seed.use=my_seed)
 ```
-
 
 # Investigate the effect of batch correction
 
 ```{r, fig.height=10, fig.width=10}
-panc8.stacas <- RunUMAP(panc8.stacas, reduction = "pca", dims = 1:ndim, seed.use=my_seed)
+p.list.Tcell <- list()
+p.list.Tcell[[1]] <- DimPlot(panc8, label = T, repel = T, group.by = 'celltype')
+p.list.Tcell[[2]] <- DimPlot(panc8, label = T, repel = T, group.by = 'tech')
+p.list.Tcell[[3]] <- DimPlot(panc8, label = T, repel = T, group.by = 'dataset')
+for (p in p.list.Tcell) {
+  print(p)
+}
+wrap_plots(p.list.Tcell, ncol = 2) & theme(aspect.ratio = 1) & NoLegend()
+```
 
+```{r}
+Idents(panc8) <- "celltype"
+dist.matrix <- dist(Embeddings(object = panc8[["pca"]])[, 1:ndim])
+clusters <- panc8$celltype
+sil <- cluster::silhouette(as.numeric(as.factor(clusters)), dist = dist.matrix)
+panc8$sil <- sil[, "sil_width"]
+
+celltype_means_before <- c()
+dataset_means_before <- c()
+for (tech in unique(panc8$tech)) {
+  a <- c()
+  for (celltype in unique(panc8$celltype)) {
+    b <- mean(panc8$sil[panc8$tech == tech & panc8$celltype == celltype])
+    a <- append(a, b)
+    celltype_means_before <- append(celltype_means_before, b)
+  }
+  dataset_means_before <- append(dataset_means_before, mean(a))
+  print(mean(a))
+}
+mean(dataset_means_before)
+mean(celltype_means_before)
+
+
+Idents(panc8) <- "celltype"
+dist.matrix <- dist(Embeddings(object = panc8[["harmony"]])[, 1:ndim])
+clusters <- panc8$celltype
+sil <- cluster::silhouette(as.numeric(as.factor(clusters)), dist = dist.matrix)
+panc8$sil <- sil[, "sil_width"]
+
+celltype_means_after <- c()
+dataset_means_after <- c()
+for (tech in unique(panc8$tech)) {
+  a <- c()
+  for (celltype in unique(panc8$celltype)) {
+    b <- mean(panc8$sil[panc8$tech == tech & panc8$celltype == celltype])
+    a <- append(a, b)
+    celltype_means_after <- append(celltype_means_after, b)
+  }
+  dataset_means_after <- append(dataset_means_after, mean(a))
+  print(mean(a))
+}
+mean(dataset_means_after)
+mean(celltype_means_after)
+
+
+```
+
+# Re-calculate integration metrics after batch correction
+
+```{r}
+metrics <- getIntegrationMetrics(panc8, meta.label = "celltype",
+                                 meta.batch = "tech",
+                                 iLISI_perplexity = 20)
+unlist(metrics)
+
+metrics <- getIntegrationMetrics(panc8.stacas, meta.label = "celltype",
+                                 meta.batch = "tech",
+                                 iLISI_perplexity = 20)
+unlist(metrics)
+```
+
+# Apply STACAS batch correction
+
+```{r}
+panc8.list <- SplitObject(panc8, split.by = "tech")
+panc8.stacas <- Run.STACAS(panc8.list)
+panc8.stacas <- RunUMAP(panc8.stacas, reduction = "pca", dims = 1:ndim, seed.use=my_seed)
+rm(panc8.list)
+gc()
+```
+
+# Investigate the effect of batch correction
+
+```{r, fig.height=10, fig.width=10}
 p.list.Tcell <- list()
 p.list.Tcell[[1]] <- DimPlot(panc8.stacas, label = T, repel = T, group.by = 'celltype')
 p.list.Tcell[[2]] <- DimPlot(panc8.stacas, label = T, repel = T, group.by = 'tech')
@@ -94,7 +182,6 @@ for (p in p.list.Tcell) {
 }
 wrap_plots(p.list.Tcell, ncol = 2) & theme(aspect.ratio = 1) & NoLegend()
 ```
-
 
 ```{r}
 Idents(panc8.stacas) <- "celltype"
@@ -141,17 +228,47 @@ mean(dataset_means_after)
 mean(celltype_means_after)
 ```
 
-
 # Re-calculate integration metrics after batch correction
 
 ```{r}
-metrics <- getIntegrationMetrics(panc8, meta.label = "celltype",
+metrics <- getIntegrationMetrics(panc8, method.reduction = "pca", meta.label = "celltype",
                                  meta.batch = "tech",
                                  iLISI_perplexity = 20)
 unlist(metrics)
 
-metrics <- getIntegrationMetrics(panc8.stacas, meta.label = "celltype",
+metrics <- getIntegrationMetrics(panc8, method.reduction = "harmony", meta.label = "celltype",
                                  meta.batch = "tech",
                                  iLISI_perplexity = 20)
 unlist(metrics)
+
+metrics <- getIntegrationMetrics(panc8.stacas, method.reduction = "pca", meta.label = "celltype",
+                                 meta.batch = "tech",
+                                 iLISI_perplexity = 20)
+unlist(metrics)
+```
+
+# Cluster evaluation
+
+-   Cluster the cells in both batch corrected objects
+-   Calculate the fraction of alpha cells vs non-alpha-cells in the alpha cluster for both objects
+-   Calculate the fraction of alpha cells in the alpha cluster vs the sum of all cells annotated as alpha cells (celltype in the metadata)
+
+```{r}
+panc8 <- FindNeighbors(panc8, reduction = "harmony", dims = 1:ndim)
+panc8 <- FindClusters(panc8, resolution = 0.05)
+DimPlot(panc8, label = T, repel = T, group.by = 'seurat_clusters')
+
+panc8.stacas <- FindNeighbors(panc8.stacas, dims = 1:ndim)
+panc8.stacas <- FindClusters(panc8.stacas, resolution = 0.05)
+DimPlot(panc8.stacas, label = T, repel = T, group.by = 'seurat_clusters')
+
+# Example true labels and predicted clusters (replace these with your own data)
+alpha_cluster.harmony <- table(panc8$celltype[panc8$RNA_snn_res.0.05 == 0])
+alpha_cluster.stacas <- table(panc8.stacas$celltype[panc8.stacas$integrated_snn_res.0.05 == 0])
+
+alpha_cluster.harmony["alpha"] / sum(alpha_cluster.harmony)
+alpha_cluster.stacas["alpha"] / sum(alpha_cluster.stacas)
+
+alpha_cluster.harmony["alpha"] / length(panc8$celltype[panc8$celltype == "alpha"])
+alpha_cluster.stacas["alpha"] / length(panc8.stacas$celltype[panc8.stacas$celltype == "alpha"])
 ```
