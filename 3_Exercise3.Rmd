@@ -6,11 +6,15 @@ output:
     toc: true
 ---
 
-# Exercise 2
+# Exercise 3
+
+# Goals
+
+-   Try different packages to "integrate" (= combine and mitigate batch effect for) multiple datasets
 
 # Introduction
 
-In the second exercise, you will apply what you learnt in exercise 1 to annotate a breast cancer dataset.
+In the third exercise, you will apply what you learnt in exercise 2 to annotate a breast cancer dataset.
 
 ```{r, message=FALSE, warning=F, results=FALSE}
 
@@ -44,11 +48,11 @@ set.seed(my_seed)
 
 root <- getwd()
 
-path_data <- file.path(root, "data")
+path_data <- file.path(root, "data/Exercise3")
 dir.create(file.path(path_data))
-path_output <- file.path(root, "output")
+path_output <- file.path(root, "output/Exercise3")
 dir.create(file.path(path_output))
-path_plots <- file.path(root, "plots")
+path_plots <- file.path(root, "plots/Exercise3")
 dir.create(file.path(path_plots))
 ```
 
@@ -78,7 +82,6 @@ wrap_plots(p.list.Tcell, ncol = 2) & theme(aspect.ratio = 1) & NoLegend()
 
 -   Looking at the UMAP by dataset, what can you see when looking at the different datasets acquired with the inDrop technology? (the datasets called indrop1, indrop2, indrop3, indrop4 are acquired with the same technology)
 
-
 # Apply Harmony batch correction
 
 ```{r}
@@ -98,6 +101,41 @@ for (p in p.list.Tcell) {
 }
 wrap_plots(p.list.Tcell, ncol = 2) & theme(aspect.ratio = 1) & NoLegend()
 ```
+
+# Apply STACAS batch correction
+
+```{r}
+panc8.list <- SplitObject(panc8, split.by = "tech")
+panc8.stacas <- Run.STACAS(panc8.list)
+panc8.stacas <- RunUMAP(panc8.stacas, reduction = "pca", dims = 1:ndim, seed.use=my_seed)
+rm(panc8.list)
+gc()
+```
+
+# Investigate the effect of batch correction
+
+```{r, fig.height=10, fig.width=10}
+p.list.Tcell <- list()
+p.list.Tcell[[1]] <- DimPlot(panc8.stacas, label = T, repel = T, group.by = 'celltype')
+p.list.Tcell[[2]] <- DimPlot(panc8.stacas, label = T, repel = T, group.by = 'tech')
+p.list.Tcell[[3]] <- DimPlot(panc8.stacas, label = T, repel = T, group.by = 'dataset')
+for (p in p.list.Tcell) {
+  print(p)
+}
+wrap_plots(p.list.Tcell, ncol = 2) & theme(aspect.ratio = 1) & NoLegend()
+```
+
+# ℹ️ Exercise
+
+-   Looking at the alpha cell cluster, what do you notice, regarding celltype and tech?
+-   Are batches well mixed?
+-   Is biological information retained well? (If we mix everything, of course batches are well mixed but celltypes should not be mixed!)
+-   Do you think this is a good integration result?
+
+## Calculate the silhouette width before and after integration with Harmony
+
+-   Silhouette width for each celltype
+-   Compare mean silhouette width of all celltypes before and after
 
 ```{r}
 Idents(panc8) <- "celltype"
@@ -142,45 +180,6 @@ for (tech in unique(panc8$tech)) {
 }
 mean(dataset_means_after)
 mean(celltype_means_after)
-
-
-```
-
-# Re-calculate integration metrics after batch correction
-
-```{r}
-metrics <- getIntegrationMetrics(panc8, meta.label = "celltype",
-                                 meta.batch = "tech",
-                                 iLISI_perplexity = 20)
-unlist(metrics)
-
-metrics <- getIntegrationMetrics(panc8.stacas, meta.label = "celltype",
-                                 meta.batch = "tech",
-                                 iLISI_perplexity = 20)
-unlist(metrics)
-```
-
-# Apply STACAS batch correction
-
-```{r}
-panc8.list <- SplitObject(panc8, split.by = "tech")
-panc8.stacas <- Run.STACAS(panc8.list)
-panc8.stacas <- RunUMAP(panc8.stacas, reduction = "pca", dims = 1:ndim, seed.use=my_seed)
-rm(panc8.list)
-gc()
-```
-
-# Investigate the effect of batch correction
-
-```{r, fig.height=10, fig.width=10}
-p.list.Tcell <- list()
-p.list.Tcell[[1]] <- DimPlot(panc8.stacas, label = T, repel = T, group.by = 'celltype')
-p.list.Tcell[[2]] <- DimPlot(panc8.stacas, label = T, repel = T, group.by = 'tech')
-p.list.Tcell[[3]] <- DimPlot(panc8.stacas, label = T, repel = T, group.by = 'dataset')
-for (p in p.list.Tcell) {
-  print(p)
-}
-wrap_plots(p.list.Tcell, ncol = 2) & theme(aspect.ratio = 1) & NoLegend()
 ```
 
 ```{r}
@@ -247,9 +246,16 @@ metrics <- getIntegrationMetrics(panc8.stacas, method.reduction = "pca", meta.la
 unlist(metrics)
 ```
 
-# Cluster evaluation
+# ℹ️ Exercise
 
--   Cluster the cells in both batch corrected objects
+-   Looking at the alpha cell cluster, what do you notice, regarding celltype and tech?
+-   Are batches well mixed?
+-   Is biological information retained well? (If we mix everything, of course batches are well mixed but celltypes should not be mixed!)
+-   Do you think this is a good integration result?
+
+## Cluster purity evaluation
+
+-   Cluster the cells in both batch corrected objects (make sure that all cells close to the alpha cluster are assigned to the one same cluster. Do not care about the other clusters for the sake of simplicity)
 -   Calculate the fraction of alpha cells vs non-alpha-cells in the alpha cluster for both objects
 -   Calculate the fraction of alpha cells in the alpha cluster vs the sum of all cells annotated as alpha cells (celltype in the metadata)
 
