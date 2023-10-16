@@ -22,7 +22,7 @@ output:
 
 # Introduction
 
-In the first part of the course you mainly learned about the fundamental concepts in (gene expression) data analysis and implemented them by writing your own algorithms for each one of them.
+In the first part of the course you mainly learnt about the fundamental concepts in (gene expression) data analysis and implemented them by writing your own algorithms for each one of them.
 
 In this second part of the course we will make our life much easier! As our colleagues all around the world face the same challenges as we do, sometimes in completely different fields of science, there is a package written by someone else for almost anything already out there. Why re-inventing the wheel, right?
 
