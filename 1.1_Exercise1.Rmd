@@ -327,11 +327,11 @@ DimPlot(pbmc, reduction = "pca", label = TRUE)
 
 ## Run non-linear dimensional reduction (UMAP/tSNE)
 
-UMAP works a bit like magnets: Similar cells attract each other while non-similar ones repel each other. This results in much better separated clusters. If you want to better understand how it works and its hyperparameters, here is a cool website to play around with it, where you see changes in real-time: <https://pair-code.github.io/understanding-umap/>.
+UMAP works a bit like magnets: Similar cells attract each other while non-similar ones repel each other. This results in much better separated clusters. If you want to better understand how it works and its hyperparameters, here is a cool website to play around with it, where you see changes in real-time: <https://pair-code.github.io/understanding-umap/>. For a discussion on dimensionality reduction for scRNAseq analysis, see <https://bioconductor.org/books/3.15/OSCA.basic/dimensionality-reduction.html>.
 
-[**IMPORTANT: Distances between UMAP clusters might not mean anything and are NOT QUANTITATIVE!**]{.underline}
+[**IMPORTANT: Distances between cells and clusters in UMAP/tSNE might not be meaningful **]{.underline}
 
-While it's true that the global positions of clusters are better preserved in UMAP, the distances between them are not meaningful. Again, this is due to using local (thus non-linear) distances when constructing the graph. However, this does not mean UMAPs useless. Quite the contrary! UMAPs are a great tool to group local communities, such as single cell types. But cell types and subtypes might be grouped together or separate based on the specific hyperparameter combination used. Unfortunately, there is no "optimal" parameter setting, as it depends on your data. This is why we need additional information to solve this cell type classification problem: by bringing in our informed expert knowledge on the cell types.
+UMAP tries to find a low-dimensional representation that preserves the neighbors in high-dimensional space. However, there is no guarantee for the preservation of global structure, and thus, these visualizations are only useful when accompanied by quantitative analyses. That said, UMAP can be a great tool to visualize local communities such as cell types. But cell types and subtypes might be grouped together or separate based on the specific hyperparameter combination used. Unfortunately, there is no "optimal" parameter setting, as it depends on your data. This is why we need additional information to solve this cell type classification problem: for instance, by bringing in our informed expert knowledge on the cell types.
 
 ```{r warning=FALSE}
 pbmc <- RunUMAP(pbmc, dims = 1:10, seed.use = NULL)
