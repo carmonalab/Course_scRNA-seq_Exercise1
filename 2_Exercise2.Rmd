@@ -1,5 +1,5 @@
 ---
-title: "Exercise 1"
+title: "Exercise 2"
 output: 
   html_document: 
     number_sections: true
@@ -23,7 +23,7 @@ output:
 
 # Introduction
 
-In the second exercise, you will apply what you learnt in exercise 1 to annotate the celltypes in a breast cancer dataset (which you have seen shortly seen at the end of the Gfeller part of this course)
+In the second exercise, you will apply what you learnt in exercise 1 to annotate the celltypes in a breast cancer dataset (which you have seen shortly seen at the previous module of this course)
 
 ```{r, message=FALSE, warning=F, results=FALSE}
 
@@ -188,17 +188,17 @@ In the previous exercise you annotated clusters of cells manually. You did so by
 
 However, each method comes with its own advantages, limitations and drawbacks. For example, on one hand, some annotation tools can annotate a wide range of cell types across many tissues but lack the resolution to annotate subtypes. On the other hand, some packages are highly focused on a specific cell type but can go very deep and are able to very accurately annotate them and their subtypes at high-resolution.
 
-In this exercise, you will apply [scGate](https://github.com/carmonalab/scGate), an R package that automatizes the typical manual marker-based approach to cell type annotation, to enable accurate and intuitive purification of a cell population, without requiring reference gene expression profiles or training data. It's mostly focused on immune cells and other cell types found in cancer.
+In this exercise, you will apply [scGate](https://github.com/carmonalab/scGate), an R package that automatizes the typical manual marker-based approach to cell type annotation, to enable accurate and intuitive purification of a cell population, without requiring reference gene expression profiles or training data. It's mostly focused on immune cells and other cell types found in tumors.
 
-scGate uses a [database of expert-selected markers](https://github.com/carmonalab/scGate_models/blob/master/human/generic/master_table.tsv) and hierarchical gating. For example, you identify immune cells as CD45+. However, immune cells can be further sub-classified into e.g. CD45+CD8+ cells and others that are CD45+CD8-. B cells for example are CD45+CD8-CD20+ and so on.
-
-Hierarchical gating is very good if you have very clear binary markers that are either positive/negative. But what if you have gradients of gene expression levels? Or if you go very deep: if you want to look at different CD8 subtypes? At some point, you will run out of markers that are distinctly positive/negative. In this case, gene expression profiles can be very useful for further refinement (e.g. [this tool](https://github.com/carmonalab/ProjecTILs)).
+scGate uses a [database of expert-selected markers](https://github.com/carmonalab/scGate_models/blob/master/human/generic/master_table.tsv) that can be arranged in a hierarchical order. For example, you identify immune cells as CD45+. However, immune cells can be further sub-classified into e.g. CD45+CD8+ cells and others that are CD45+CD8-. B cells for example are CD45+CD8-CD20+ and so on.
 
 ![](images/scGate_hierarchical_gating.png)
 
 ## Run scGate models to annotate cell types
 
-### Select scGate models (cell types)
+### Select scGate pre-defined gating models
+
+In this case we will select a collection of gating models intented to classify cells from the tumor micro-environment at high-resolution, called "TME_HiRes"
 
 ```{r, fig.width=10, fig.height=10}
 #Get scGate database of pre-defined gating models
@@ -207,6 +207,14 @@ models.TME <- scGate_models_DB$human$TME_HiRes
 ```
 
 ### Run scGate
+
+
+TODO: Perhaps run first a single sample to provide a simpler example, separating the classification step, from the visualization.
+
+```{r}
+
+```
+
 
 We run scGate on single samples to prevent batch effects between samples. So, we split the object into a list of objects, one for each sample
 
@@ -401,3 +409,11 @@ mean(sample_sil_multi_study)
 
 factoextra::fviz_silhouette(sil, ggtheme = theme_classic(), print.summary = TRUE)
 ```
+
+# Conclusions
+
+TODO ...
+
+what is obj.list[[1]]@misc$batch.metadata
+
+Hierarchical gating is very good if you have very clear binary markers that are either positive/negative. But what if you have gradients of gene expression levels? Or if you go very deep: if you want to look at different CD8 subtypes? At some point, you will run out of markers that are distinctly positive/negative. In this case, gene expression profiles can be very useful for further refinement (e.g. [this tool](https://github.com/carmonalab/ProjecTILs)).
