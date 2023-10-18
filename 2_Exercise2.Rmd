@@ -181,7 +181,19 @@ barplot(sample.size.filterRatio[names(sort(sample.size))], las=2)
 saveRDS(obj, file.path(path_output, "exercise2_QCed.rds"), compress = FALSE) # compress = FALSE takes more disk space but makes saving and loading a lot faster
 ```
 
-# Automated cell type annotation
+# Dimensionality Reduction
+
+```{r}
+nfeatures <- 2000
+ndim <- 30
+
+obj <- NormalizeData(obj) |> FindVariableFeatures(nfeat=nfeatures) |> ScaleData()
+obj <- RunPCA(obj, npcs=ndim)
+obj <- RunUMAP(obj, dims = 1:ndim)
+DimPlot(obj, reduction = "umap", group.by = "orig.ident") + theme(aspect.ratio=1)
+```
+
+# Automated cell type annotation with scGate
 
 In the previous exercise you annotated clusters of cells manually. You did so by checking which genes are most highly expressed in a cluster and prefereably not in all others, i.e. which specific gene expression characterizes your cell type of interest. As this is very tedious and repetitive, many tools have been developed to automate this process. The basic principle is the same: cell types are characterized by a specific gene expression pattern. Some tools use single genes or a small set of highly specific expression markers. Other tools use extensive sets of genes, called "signatures".
 
@@ -191,36 +203,20 @@ In this exercise, you will apply [scGate](https://github.com/carmonalab/scGate),
 
 scGate uses a [database of expert-selected markers](https://github.com/carmonalab/scGate_models/blob/master/human/generic/master_table.tsv) that can be arranged in a hierarchical order. For example, you identify immune cells as CD45+. However, immune cells can be further sub-classified into e.g. CD45+CD8+ cells and others that are CD45+CD8-. B cells for example are CD45+CD8-CD20+ and so on.
 
-![](images/scGate_hierarchical_gating.png)
+![](images/scGate_hierarchical_gating.png) In this case we will use a pre-defined collection of gating models intended to classify cells from the tumor micro-environment at high-resolution, called "TME_HiRes" This step should take about 1-2 minutes
 
 ```{r}
-cache_filename <- file.path(path_output,"exercise2_processed_obj.rds")
-nfeatures <- 2000
-ndim <- 30
+# download database of gating models
+scGate_models_DB <- get_scGateDB(branch = "master", verbose = T)
+# run scGate with the chosen gating model, in this case the 
+obj <- scGate(obj, model=scGate_models_DB$human$TME_HiRes)
 
-if (file.exists(cache_filename)) {
-  obj <- readRDS(cache_filename)
-} else {
-  obj <- NormalizeData(obj)
-  obj <- FindVariableFeatures(obj, nfeat=nfeatures)
-  obj <- ScaleData(obj)
-  obj <- RunPCA(obj, npcs=ndim)
-  obj <- RunUMAP(obj, dims = 1:ndim)
-  
-  # Select scGate pre-defined gating models
-  # In this case we will select a collection of gating models intended to classify cells from the tumor micro-environment at high-resolution, called "TME_HiRes"
-  # This step will take about 1-2 minutes
-  scGate_models_DB <- get_scGateDB(branch = "master", verbose = T, force_update = TRUE)
-  models.TME <- scGate_models_DB$human$TME_HiRes
-  
-  # Annotate cells
-  obj <- scGate(obj, model=models.TME)
-  
-  saveRDS(obj, cache_filename)
-}
+cache_filename <- file.path(path_output,"exercise2_processed_obj.rds")
+saveRDS(obj, cache_filename) # save results
+#obj <- readRDS(cache_filename) # in case you want to recover saved results
 ```
 
-# Plot UMAP
+# Plot UMAP and export graphics
 
 ```{r}
 DimPlot(obj, reduction = "umap", group.by = "orig.ident") + theme(aspect.ratio=1)
@@ -229,13 +225,17 @@ DimPlot(obj, reduction = "umap", group.by = "scGate_multi", label = TRUE) + them
 ggsave(file.path(path_plots,"UMAP_full_by_annotation.png"), width = 10, height = 10)
 ```
 
+## Exercise
+
 Some cells, highlighted in grey, are not annotated ("NA"). One big grey cluster seems to stem from only one patient.
 
--   What do you think these cells could be? Consider: these are whole tumor samples and we annotated immune cells, tissue, ... which cells are we missing?
+-   What do you think these cells could be?
 
 -   Why do you think these are difficult to consistently annotate across different patient samples?
 
--   Bonus question: do you have an idea which feature might distinguish these cells from others?
+-   Which feature might distinguish these cells from others?
+
+Myeloid cells (e.g. macrophages, monocytes, DCs) seem very close to each other in the UMAP space. Try sub-setting these cells and re-calculating UMAP.
 
 # Visualize the expression of some genes
 
@@ -245,7 +245,9 @@ FeaturePlot(obj, reduction = "umap", features = myFeatures, coord.fixed=T, ncol=
 ggsave(file.path(path_plots,"UMAP_features.png"),width = 40, height = 30)
 ```
 
-# Check for batch effects
+# Integrating samples from diverse datasets
+
+Next will be get a scRNAseq dataset of a breast tumor sample from a different study.
 
 ```{r fig.height=10, fig.width=10}
 # Download data
@@ -265,23 +267,57 @@ DimPlot(obj.multi_study, reduction = "umap", group.by = "scGate_multi", label = 
 DimPlot(obj.multi_study, reduction = "umap", group.by = "orig.ident") + theme(aspect.ratio=1)
 ```
 
-Looking at the above UMAPs, you can see that the study1_sample that was added from another dataset forms completely separate clusters. What happened here? Does this patient have completely different CD4 and CD8 celltypes? No - it's just batch effect.
+Looking at the above UMAPs, you can see that cells from "study1_sample", coming from a different dataset, tend to form a separate cluster. What happened here? Does this patient have completely different immune cells?
 
-## Batch effect explained
+## Batch effects explained
 
-"Single-cell data is often compiled from multiple experiments with differences in capturing times, handling personnel, reagent lots, equipment, and even technology [=sequencing] platforms. These differences lead to large variations or batch effects in the data, and can confound biological variations of interest during data integration. As such, effective batch-effect removal is essential. Batch effects can be highly nonlinear, making it difficult to correctly align different datasets while preserving key biological variations" ([Tran et al. 2020](https://genomebiology.biomedcentral.com/articles/10.1186/s13059-019-1850-9#:~:text=Batch%20effects%20can%20be%20highly,(scRNA%2Dseq)%20data.)).
+"Single-cell data is often compiled from multiple experiments with differences in capturing times, handling personnel, reagent lots, equipment, and even technology platforms. These differences lead to large variations or batch effects in the data, and can confound biological variations of interest during data integration. As such, effective batch-effect removal is essential. Batch effects can be highly nonlinear, making it difficult to correctly align different datasets while preserving key biological variations" ([Tran et al. 2020](https://genomebiology.biomedcentral.com/articles/10.1186/s13059-019-1850-9#:~:text=Batch%20effects%20can%20be%20highly,(scRNA%2Dseq)%20data.)).
 
 For this reason, several different tools have been developed trying to address this problem. You will learn about 2 different tools (one in exercise 2 and another one in exercise 3) and how to evaluate whether batch effect was successfully mitigated or not.
 
-## Evaluate the batch effect in CD8 T cells
+## Apply batch correction
 
--   First, lets plot the data
+Here we apply [STACAS](https://github.com/carmonalab/STACAS) method to correct for batch effects (<https://www.biorxiv.org/content/10.1101/2023.07.07.548105v1.full>). Other popular methods include Harmony and Seurat. The different methods use different approaches to solve this problem but the goal of all is the same: to mitigate batch effect.
+
+```{r}
+obj.multi_study.list <- SplitObject(obj.multi_study, split.by = "orig.ident")
+obj.multi_study.batch_corrected <- Run.STACAS(obj.multi_study.list)
+obj.multi_study.batch_corrected <- RunUMAP(obj.multi_study.batch_corrected, reduction = "pca", dims = 1:ndim, seed.use=my_seed)
+rm(obj.multi_study.list)
+```
+
+# Lets compare the UMAPs
+
+```{r}
+## BEFORE
+DimPlot(obj.multi_study, reduction = "umap", group.by = "scGate_multi", label = F) +
+  theme(aspect.ratio=1) +
+  ggtitle("UMAP - BEFORE batch correction - clusters labelled by cell types")
+DimPlot(obj.multi_study, reduction = "umap", group.by = "orig.ident") +
+  theme(aspect.ratio=1) +
+  ggtitle("UMAP - BEFORE batch correction - clusters labelled by sample")
+## AFTER
+DimPlot(obj.multi_study.batch_corrected, reduction = "umap", group.by = "scGate_multi", label = F) +
+  theme(aspect.ratio=1) +
+  ggtitle("UMAP - AFTER batch correction - clusters labelled by cell types")
+DimPlot(obj.multi_study.batch_corrected, reduction = "umap", group.by = "orig.ident") +
+  theme(aspect.ratio=1) +
+  ggtitle("UMAP - AFTER batch correction - clusters labelled by sample")
+
+
+```
+
+What do you interpret from these visualizations?
+
+## Quantify batch effects
+
+For simplicity, we will focus on CD8 T cells.
+
+-   What can you observe in the PCA plots below?
 
     -   The first PCA biplot shows only samples from the same "sc5r" dataset
 
     -   The second PCA biplot shows samples from all three datasets together
-
--   What can you observe in the PCA plots below?
 
 ```{r}
 # We create a subset of CD8T cells from the initial dataset
@@ -289,7 +325,7 @@ all_samples <- unique(obj.multi_study$orig.ident)
 all_samples_except_study1_sample <- all_samples[!grepl("study1_sample", all_samples)]
 obj.CD8T <- subset(obj.multi_study, subset = scGate_multi == "CD8T" & orig.ident %in% all_samples_except_study1_sample)
 
-# # We create a subset of CD8T cells from the initial dataset and including the newly added sample from another daataset
+# # We create a subset of CD8T cells from the initial dataset and including the newly added sample from another dataset
 obj.CD8T.multi <- subset(obj.multi_study, subset = scGate_multi == "CD8T")
 
 obj.CD8T <- obj.CD8T |> NormalizeData() |> FindVariableFeatures() |> ScaleData() |> RunPCA(npcs=ndim) |> RunUMAP(dims = 1:ndim)
@@ -299,15 +335,15 @@ obj.CD8T.multi <- obj.CD8T.multi |> NormalizeData() |> FindVariableFeatures() |>
 DimPlot(obj.CD8T.multi, reduction = "pca", group.by = "orig.ident") + theme(aspect.ratio=1)
 ```
 
-Let's put a number on this, so we can quantify the batch effect and whether we actually can reduce it. One metric to do sp is the silhouette coefficient that you have used before in the previous module of this course.
+Let's put a number on this, so we can quantify the batch effect and whether we can actually reduce it. One metric to do so is the silhouette coefficient that you have used before in the previous module of this course.
 
-## Silhouette score to assess clustering
+## Silhouette score to assess batch separation
 
-In short, the silhouette coefficient tells us how well-defined the clusters are. A higher silhouette coefficient indicates that the clusters are well apart from each other and clearly distinguished, while a lower or negative silhouette coefficient suggests that the clusters might be overlapping or poorly defined.
+In short, the silhouette coefficient tells us how compact a clusters is. A silhouette coefficient close to 1 indicates that the clusters are well apart from each other and clearly distinguished, while a silhouette coefficient close to zero or negative suggests that the clusters are poorly defined or overlapping.
 
--   What do we want in this case, is a high or low silhouette score?
+-   When assessing silhouette of "batches" instead of clusters, what do we want, a high or low silhouette score?
 
-Remember that we want the batches (clusters) to be mixed. In the above PCA we saw that the sample clusters from dataset 1 are well mixed, i.e. there is no batch effect, and that the sample from the second dataset formed a well-defined cluster well apart from the others.
+Remember that we want the batches to be mixed. In the above PCA we saw that the sample clusters from dataset 1 are well mixed, i.e. there is no batch effect, and that the sample from the second dataset formed a well-defined cluster well apart from the others.
 
 -   So, what are the silhouette coefficients for the samples in dataset 1 (no batch effect)? And what is the silhouette coefficient for all samples together (i.e. the silhouette coefficient of "study1_sample")? What should the silhouette scores be after batch effect mitigation, lower or higher?
 
@@ -361,38 +397,9 @@ print(paste("The average silhouette width of sample 'study1_sample' is:", obj.CD
 
 As you can see, study1_sample shows a much higher average silhouette width than all the other samples, as it forms a very distinct separate cluster. Thereby, it increases the overall average silhouette score as well.
 
-## Apply batch correction
-
-Here we use the STACAS package as an example of one of many different "integration" methods. The different methods use different theoretical approaches to solve this problem but the goal of all is the same: to mitigate batch effect.
+What happens in the batch-corrected object?
 
 ```{r}
-obj.multi_study.list <- SplitObject(obj.multi_study, split.by = "orig.ident")
-obj.multi_study.batch_corrected <- Run.STACAS(obj.multi_study.list)
-obj.multi_study.batch_corrected <- RunUMAP(obj.multi_study.batch_corrected, reduction = "pca", dims = 1:ndim, seed.use=my_seed)
-rm(obj.multi_study.list)
-gc()
-```
-
-## Clustering after batch correction
-
-```{r}
-# Lets compare the UMAPs
-## BEFORE
-DimPlot(obj.multi_study, reduction = "umap", group.by = "scGate_multi", label = F) +
-  theme(aspect.ratio=1) +
-  ggtitle("UMAP - BEFORE batch correction - clusters labelled by cell types")
-DimPlot(obj.multi_study, reduction = "umap", group.by = "orig.ident") +
-  theme(aspect.ratio=1) +
-  ggtitle("UMAP - BEFORE batch correction - clusters labelled by sample")
-
-DimPlot(obj.multi_study.batch_corrected, reduction = "umap", group.by = "scGate_multi", label = F) +
-  theme(aspect.ratio=1) +
-  ggtitle("UMAP - AFTER batch correction - clusters labelled by cell types")
-DimPlot(obj.multi_study.batch_corrected, reduction = "umap", group.by = "orig.ident") +
-  theme(aspect.ratio=1) +
-  ggtitle("UMAP - AFTER batch correction - clusters labelled by sample")
-
-
 # As above, lets have a look at the PCAs and silhouette widths but now after we applied batch correction
 obj.CD8T.batch_corrected <- subset(obj.multi_study.batch_corrected, subset = scGate_multi == "CD8T" & orig.ident %in% all_samples_except_study1_sample)
 obj.CD8T.multi.batch_corrected <- subset(obj.multi_study.batch_corrected, subset = scGate_multi == "CD8T")
@@ -414,14 +421,8 @@ print(obj.CD8T.multi.BC.sil_list$plot)
 print(paste("The multi study average silhouette width (across all cells) is:", mean(obj.CD8T.multi.BC.sil_list$SilW_per_cell)))
 ```
 
-You can see that after batch correction, in the UMAP, the cells from study1_sample are well mixed with the cells from the original dataset. For example, the CD4 cells from study1_sample are among the CD4 cellsfrom the original dataset and do not form a separate cluster anymore.
-
-Also in the PCA, the cells from all samples are well mixed.
-
-The silhouette score for all samples are very low, meaning that the cells from each sample are well mixed with the cells from the other samples.
-
 # Conclusions
 
-You learnt **how to automatically annotate cells in an scRNA-seq dataset, consisting of multiple samples**, by the example of one R package. It applies marker-based hierarchical gating which is very good if you have very clear binary markers that are either positive/negative. But what if you have gradients of gene expression levels? Or if you go very deep: if you want to look at different CD8 subtypes? At some point, you will run out of markers that are distinctly positive/negative. In this case, gene expression profiles can be very useful for further refinement (e.g. [this tool](https://github.com/carmonalab/ProjecTILs)).
+We have discussed **automatic cell type annotation in scRNA-seq data**. In general, automated approaches are preferable over manual annotation for consistency of results and scalability. In particular, marker-based approaches, such as scGate used here, have the advantage that are transparent and flexible, but depends on well defined marker genes. But what biologically relevant cell states are defined by gradients of gene expression levels? At some point, you might run out of markers that are distinctly positive/negative. In this case, alternative approaches such as reference mapping (e.g. [Projectils](https://github.com/carmonalab/ProjecTILs) and Seurat [label transfer](https://satijalab.org/seurat/articles/integration_mapping.html)) might be preferable.
 
-Furthermore, we have seen that **batch effect needs to be mitigated when combining multiple datasets**. We also used silhouette scoring as a simple metric to quantify how well-clusters are defined (or mixed in this case) to evaluate the batch effect before and after "integration". You might ask: "but if I just mix the cells very well randomly, the silhouette score would be minimal, thus TECHNICAL batch effect perfectly removed...but then wouldn't cell types also be mixed, i.e. the BIOLOGICAL separation also be removed"? Yes, indeed. In older integration method that was a big problem: cells were mixed and batch effect somewhat mitigated but at the cost of also mixing some celltypes. People have long thought about that and come up with different strategies to integrate scRNA-seq datasets. In the next exercise we will see a well-established (old) popular integration method called "Harmony" and compare its results with a newer method which tried to address its weaknesses. By this, we hope to sharpen your eyes to detect and check for technical artefacts, in order to prevent them. Always be aware of your data's quality and possible technical and biological artefacts, possible biases and limitations.
+We have also seen that samples might present batch effects, and it might be desirable to correct them. We used silhouette scoring as a simple metric to quantify how mixed are cells from different batches to evaluate the batch effect before and after correction. Something we have NOT considered is that batch effects correction might remove important biological variability in addition to technical, unwanted variation. We well discuss this problem and compare different methods in the exercise 3.
