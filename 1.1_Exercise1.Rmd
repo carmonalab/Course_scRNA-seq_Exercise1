@@ -126,7 +126,7 @@ If not done before
 ```{r}
 # Download the Peripheral Blood Mononuclear Cells (PBMC) dataset
 destfile <- file.path(path_data, "Archive.zip")
-if (!exists(destfile)) {
+if (!file.exists(destfile)) {
   download.file(url = "https://www.dropbox.com/scl/fi/t535fs01a8zgevw6d4v94/Archive.zip?rlkey=5hglzvg3qpkw4tkis8oyoyqkd&dl=1",
               destfile = destfile)
   # Decompress file
@@ -329,7 +329,7 @@ DimPlot(pbmc, reduction = "pca", label = TRUE)
 
 UMAP works a bit like magnets: Similar cells attract each other while non-similar ones repel each other. This results in much better separated clusters. If you want to better understand how it works and its hyperparameters, here is a cool website to play around with it, where you see changes in real-time: <https://pair-code.github.io/understanding-umap/>. For a discussion on dimensionality reduction for scRNAseq analysis, see <https://bioconductor.org/books/3.15/OSCA.basic/dimensionality-reduction.html>.
 
-[**IMPORTANT: Distances between cells and clusters in UMAP/tSNE might not be meaningful **]{.underline}
+[**IMPORTANT: Distances between cells and clusters in UMAP/tSNE might not be meaningful**]{.underline}
 
 UMAP tries to find a low-dimensional representation that preserves the neighbors in high-dimensional space. However, there is no guarantee for the preservation of global structure, and thus, these visualizations are only useful when accompanied by quantitative analyses. That said, UMAP can be a great tool to visualize local communities such as cell types. But cell types and subtypes might be grouped together or separate based on the specific hyperparameter combination used. Unfortunately, there is no "optimal" parameter setting, as it depends on your data. This is why we need additional information to solve this cell type classification problem: for instance, by bringing in our informed expert knowledge on the cell types.
 
