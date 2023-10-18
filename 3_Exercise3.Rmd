@@ -14,7 +14,7 @@ output:
 
 # Introduction
 
-In the third exercise, you will apply what you learnt in exercise 2 to annotate a breast cancer dataset.
+In this exercise, you will compare the historically most commonly used integration method, called "Harmony". However, we will see it's limitation and how newer integration methods further improved on Harmony's limitation to mitigate batch effect.
 
 ```{r, message=FALSE, warning=F, results=FALSE}
 
@@ -73,7 +73,7 @@ p.list.Tcell[[3]] <- DimPlot(panc8, label = T, repel = T, group.by = 'dataset')
 for (p in p.list.Tcell) {
   print(p)
 }
-wrap_plots(p.list.Tcell, ncol = 2) & theme(aspect.ratio = 1) & NoLegend()
+wrap_plots(p.list.Tcell, ncol = 2) + theme(aspect.ratio = 1) + NoLegend()
 ```
 
 -   What do you notice in the UMAP by celltype?
@@ -89,7 +89,7 @@ panc8 <- RunHarmony(panc8, "tech")
 panc8 <- RunUMAP(panc8, reduction = "harmony", dims = 1:ndim, seed.use=my_seed)
 ```
 
-# Investigate the effect of batch correction
+## Investigate the effect of Harmony batch correction
 
 ```{r, fig.height=10, fig.width=10}
 p.list.Tcell <- list()
@@ -99,8 +99,13 @@ p.list.Tcell[[3]] <- DimPlot(panc8, label = T, repel = T, group.by = 'dataset')
 for (p in p.list.Tcell) {
   print(p)
 }
-wrap_plots(p.list.Tcell, ncol = 2) & theme(aspect.ratio = 1) & NoLegend()
+wrap_plots(p.list.Tcell, ncol = 2) + theme(aspect.ratio = 1) + NoLegend()
 ```
+
+-   Looking at the alpha cell cluster, what do you notice, regarding celltype and tech?
+-   Are batches well mixed?
+-   Is biological information retained well? (If we mix everything, of course batches are well mixed but celltypes should not be mixed!)
+-   Do you think this is a good integration result?
 
 # Apply STACAS batch correction
 
@@ -112,7 +117,7 @@ rm(panc8.list)
 gc()
 ```
 
-# Investigate the effect of batch correction
+## Investigate the effect of STACAS batch correction
 
 ```{r, fig.height=10, fig.width=10}
 p.list.Tcell <- list()
@@ -122,112 +127,105 @@ p.list.Tcell[[3]] <- DimPlot(panc8.stacas, label = T, repel = T, group.by = 'dat
 for (p in p.list.Tcell) {
   print(p)
 }
-wrap_plots(p.list.Tcell, ncol = 2) & theme(aspect.ratio = 1) & NoLegend()
+wrap_plots(p.list.Tcell, ncol = 2) + theme(aspect.ratio = 1) + NoLegend()
 ```
+
+Looking at the alpha celltype cluster again, compared to Harmony integration, STACAS did a better job at mixing datasets, as well as retaining the correct celltype in the correct cluster.
+
+# Calculate integration metrics after batch correction
+
+In Exercise 2, we calculated the average silhouette width per sample as a metric to investigate batch effect and mitigation thereof. Lets do that again here:
+
+```{r}
+# We create a subset of alpha cells from
+panc8.alpha <- subset(panc8, subset = celltype == "alpha")
+panc8.stacas.alpha <- subset(panc8.stacas, subset = celltype == "alpha")
+
+Idents(panc8.alpha) <- "dataset"
+Idents(panc8.stacas.alpha) <- "dataset"
+
+# Define function to calculate silhouette widths
+# INPUT:
+# - Seurat object with dataset annotation stored in object$dataset
+# - method.reduction (for Harmony integration, the data is stored in the same object as the non-integrated data)
+# RETURNS: A list, containing:
+# - plot: a silhouette plot
+# - SilW_per_cell: Silhouette coefficient for each cell (Vector)
+# - AvgSilW_per_sample: Average silhouette coefficient per sample (Vector)
+
+calc_sil_widths <- function(object, method.reduction){
+  return_list <- list()
+  dist.matrix <- dist(Embeddings(object = object[[method.reduction]])[, 1:ndim])
+  clusters <- object$dataset
+  sil <- cluster::silhouette(as.numeric(as.factor(clusters)), dist = dist.matrix)
+  object$sil <- sil[, "sil_width"]
+  
+  return_list[["plot"]] <- factoextra::fviz_silhouette(sil, print.summary = TRUE, ggtheme = theme_classic()) +
+    scale_fill_discrete(labels = unique(object$dataset)) + guides(col="none")
+  
+  SilW_per_cell <- c()
+  AvgSilW_per_dataset <- c()
+  for (dataset in unique(object$dataset)) {
+    dataset_cells_sils <- object$sil[which(object$dataset == dataset)]
+    SilW_per_cell <- c(SilW_per_cell, dataset_cells_sils)
+    AvgSilW_per_dataset <- c(AvgSilW_per_dataset, setNames(mean(dataset_cells_sils), dataset))
+  }
+  return_list[["SilW_per_cell"]] <- SilW_per_cell
+  return_list[["AvgSilW_per_dataset"]] <- AvgSilW_per_dataset
+  return(return_list)
+}
+
+# Lets have a look at the silhouette coefficients looking at only the samples from dataset 1
+panc8.alpha.sil_list <- calc_sil_widths(panc8.alpha, "pca")
+print(panc8.alpha.sil_list$plot)
+
+panc8.alpha.sil_list <- calc_sil_widths(panc8.alpha, "harmony")
+print(panc8.alpha.sil_list$plot)
+
+panc8.stacas.alpha.sil_list <- calc_sil_widths(panc8.stacas.alpha, "pca")
+print(panc8.stacas.alpha.sil_list$plot)
+```
+
+Again, we can see that before correcting for batch effect, the samples cluster strongly by dataset. The average silhouette width is very high. Harmony does a good job at mitigating batch effect. However, "indrop1" still seems to show batch effect and is not very well integrated. STACAS does an even slightly better job, as "indrop1" and "indrop2" show clearly lower overall silhouette scores.
 
 # ℹ️ Exercise
 
--   Looking at the alpha cell cluster, what do you notice, regarding celltype and tech?
--   Are batches well mixed?
--   Is biological information retained well? (If we mix everything, of course batches are well mixed but celltypes should not be mixed!)
--   Do you think this is a good integration result?
+Silhouette score is a metric to evaluate batch mixing.
 
-## Calculate the silhouette width before and after integration with Harmony
+However, as we have seen above, we also need to check that celltypes were not overly mixed. I.e. each cell should be closest to the celltype cluster it belongs.
 
--   Silhouette width for each celltype
--   Compare mean silhouette width of all celltypes before and after
+## Cluster purity evaluation
 
-```{r}
-Idents(panc8) <- "celltype"
-dist.matrix <- dist(Embeddings(object = panc8[["pca"]])[, 1:ndim])
-clusters <- panc8$celltype
-sil <- cluster::silhouette(as.numeric(as.factor(clusters)), dist = dist.matrix)
-panc8$sil <- sil[, "sil_width"]
+UMAP distances are not quantitative, as they are derived in a very non-linear way. For simplicity, let us look at how many cells are clustered to their corresponding celltype cluster in the UMAP. After that, you will see a more sophisticated method to check whether cells are in their correct neighbourhood, called iLISI.
 
-celltype_means_before <- c()
-dataset_means_before <- c()
-for (tech in unique(panc8$tech)) {
-  a <- c()
-  for (celltype in unique(panc8$celltype)) {
-    b <- mean(panc8$sil[panc8$tech == tech & panc8$celltype == celltype])
-    a <- append(a, b)
-    celltype_means_before <- append(celltype_means_before, b)
-  }
-  dataset_means_before <- append(dataset_means_before, mean(a))
-  print(mean(a))
-}
-mean(dataset_means_before)
-mean(celltype_means_before)
-
-
-Idents(panc8) <- "celltype"
-dist.matrix <- dist(Embeddings(object = panc8[["harmony"]])[, 1:ndim])
-clusters <- panc8$celltype
-sil <- cluster::silhouette(as.numeric(as.factor(clusters)), dist = dist.matrix)
-panc8$sil <- sil[, "sil_width"]
-
-celltype_means_after <- c()
-dataset_means_after <- c()
-for (tech in unique(panc8$tech)) {
-  a <- c()
-  for (celltype in unique(panc8$celltype)) {
-    b <- mean(panc8$sil[panc8$tech == tech & panc8$celltype == celltype])
-    a <- append(a, b)
-    celltype_means_after <- append(celltype_means_after, b)
-  }
-  dataset_means_after <- append(dataset_means_after, mean(a))
-  print(mean(a))
-}
-mean(dataset_means_after)
-mean(celltype_means_after)
-```
+-   Cluster the cells in both batch corrected objects (make sure that all cells close to the alpha cluster are assigned to the one same cluster. Do not care about the other clusters for the sake of simplicity)
+-   Calculate the fraction of alpha cells vs non-alpha-cells in the alpha cluster for both objects
+-   Calculate the fraction of alpha cells in the alpha cluster vs the sum of all cells annotated as alpha cells (celltype in the metadata)
 
 ```{r}
-Idents(panc8.stacas) <- "celltype"
-dist.matrix <- dist(Embeddings(object = panc8[["pca"]])[, 1:ndim])
-clusters <- panc8$celltype
-sil <- cluster::silhouette(as.numeric(as.factor(clusters)), dist = dist.matrix)
-panc8$sil <- sil[, "sil_width"]
+# Enter code here
 
-celltype_means_before <- c()
-dataset_means_before <- c()
-for (tech in unique(panc8$tech)) {
-  a <- c()
-  for (celltype in unique(panc8$celltype)) {
-    b <- mean(panc8$sil[panc8$tech == tech & panc8$celltype == celltype])
-    a <- append(a, b)
-    celltype_means_before <- append(celltype_means_before, b)
-  }
-  dataset_means_before <- append(dataset_means_before, mean(a))
-  print(mean(a))
-}
-mean(dataset_means_before)
-mean(celltype_means_before)
+# Suggested functions:
+# - FindNeighbors(object, reduction = "harmony", dims = 1:ndim) /// FindNeighbors(object, reduction = "pca", dims = 1:ndim)
+# - FindClusters(object, resolution = X) /// try some different X inputs for the resolution, e.g. some number between 0.01 and 3
+# - DimPlot(object, label = T, repel = T, group.by = 'seurat_clusters')
+# - table(object$celltype[panc8$RNA_snn_res.X == cluster.number]) /// put the respective cluster.number from the UMAP for the alpha cell cluster
 
 
-Idents(panc8.stacas) <- "celltype"
-dist.matrix <- dist(Embeddings(object = panc8.stacas[["pca"]])[, 1:ndim])
-clusters <- panc8.stacas$celltype
-sil <- cluster::silhouette(as.numeric(as.factor(clusters)), dist = dist.matrix)
-panc8.stacas$sil <- sil[, "sil_width"]
 
-celltype_means_after <- c()
-dataset_means_after <- c()
-for (tech in unique(panc8.stacas$tech)) {
-  a <- c()
-  for (celltype in unique(panc8.stacas$celltype)) {
-    b <- mean(panc8.stacas$sil[panc8.stacas$tech == tech & panc8.stacas$celltype == celltype])
-    a <- append(a, b)
-    celltype_means_after <- append(celltype_means_after, b)
-  }
-  dataset_means_after <- append(dataset_means_after, mean(a))
-  print(mean(a))
-}
-mean(dataset_means_after)
-mean(celltype_means_after)
+
+
+
+
 ```
 
-# Re-calculate integration metrics after batch correction
+# Alternative integration metrics
+
+We have seen that the batch mixing and celltype cluster retention (mitigating technical artefact while retaining biological information) are two critical aspects to evaluate the quality of an integration method. The scIntegrationMetrics package provides a convenient function to do this.
+
+Lets look at two of the integrations metrics: - iLISI: Local Inverse Simpson's Index (LISI) for batch mixing, as defined by [Korsunsky et al. Nat Methods (2019)](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC6884693); it quantifies the effective number of datasets in a local neighborhood, thereby measuring batch mixing. (higher = better batch mixing) - celltype_ASW: Average Silhouette Width by celltype: it quantifies distances of cells of the same type compared to the distances to cells of other types. (higher = more well-separated and/or denser celltype clusters)
+
+Explanations for the other integration metrics you can find on the [scIntegrationMetrics GitHub repository](https://github.com/carmonalab/scIntegrationMetrics)
 
 ```{r}
 metrics <- getIntegrationMetrics(panc8, method.reduction = "pca", meta.label = "celltype",
@@ -246,18 +244,9 @@ metrics <- getIntegrationMetrics(panc8.stacas, method.reduction = "pca", meta.la
 unlist(metrics)
 ```
 
-# ℹ️ Exercise
+# \-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\--
 
--   Looking at the alpha cell cluster, what do you notice, regarding celltype and tech?
--   Are batches well mixed?
--   Is biological information retained well? (If we mix everything, of course batches are well mixed but celltypes should not be mixed!)
--   Do you think this is a good integration result?
-
-## Cluster purity evaluation
-
--   Cluster the cells in both batch corrected objects (make sure that all cells close to the alpha cluster are assigned to the one same cluster. Do not care about the other clusters for the sake of simplicity)
--   Calculate the fraction of alpha cells vs non-alpha-cells in the alpha cluster for both objects
--   Calculate the fraction of alpha cells in the alpha cluster vs the sum of all cells annotated as alpha cells (celltype in the metadata)
+# Solution
 
 ```{r}
 panc8 <- FindNeighbors(panc8, reduction = "harmony", dims = 1:ndim)
