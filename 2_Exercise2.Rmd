@@ -83,7 +83,7 @@ brca.data = Read10X(file.path(path_data))
 obj <- CreateSeuratObject(counts = brca.data, project = "brca",
                           min.cells = 3, min.features = 200)
 
-# For the sake of speed and RAM memory availability in some laptops, we use just a small part of the dataset for this exercise
+# For the sake of calculation time and RAM memory constraints in some laptops, we use just a small part of the dataset for this exercise
 obj <- subset(obj, downsample=500)
 obj
 
@@ -111,8 +111,8 @@ VlnPlot(obj, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3)
 VlnPlot(obj, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3, pt.size = 0) # remove points to see distribution better
 
 # FeatureScatter is typically used to visualize feature-feature relationships, but can be used for anything calculated by the object, i.e. columns in object metadata, PC scores etc.
-plot1 <- FeatureScatter(obj, feature1 = "nCount_RNA", feature2 = "percent.mt") & NoLegend()
-plot2 <- FeatureScatter(obj, feature1 = "nCount_RNA", feature2 = "nFeature_RNA") & NoLegend()
+plot1 <- FeatureScatter(obj, feature1 = "nCount_RNA", feature2 = "percent.mt") + NoLegend()
+plot2 <- FeatureScatter(obj, feature1 = "nCount_RNA", feature2 = "nFeature_RNA") + NoLegend()
 plot1 + plot2
 rm(plot1, plot2)
 ```
@@ -133,16 +133,15 @@ barplot(sort(sample.size.pre), las=2)
 
 -   Adjust and select appropriate percent.mt threshold
 
-```{r warning=FALSE}
-# Seurat plots can be easily modified with the popular ggplots2 library by chaining it with the "&" operator
-thresh_nFeature_RNA <- c(200, 5000)
-thresh_percent.mt <- 17
+```{r}
+thresh_nFeature_RNA <- c(xxx, yyy) # Replace xxx and yyy
+thresh_percent.mt <- zzz # Replace zzz
 
-plot1 <- VlnPlot(obj, features = "nFeature_RNA", pt.size = 0) &
-  geom_hline(yintercept = thresh_nFeature_RNA, linetype='dashed', col = 'red') & NoLegend()
-plot2 <- VlnPlot(obj, features = "nCount_RNA", pt.size = 0) & NoLegend()
-plot3 <- VlnPlot(obj, features = "percent.mt", pt.size = 0) &
-  geom_hline(yintercept = thresh_percent.mt, linetype='dashed', col = 'red') & NoLegend()
+plot1 <- VlnPlot(obj, features = "nFeature_RNA", pt.size = 0) +
+  geom_hline(yintercept = thresh_nFeature_RNA, linetype='dashed', col = 'red') + NoLegend()
+plot2 <- VlnPlot(obj, features = "nCount_RNA", pt.size = 0) + NoLegend()
+plot3 <- VlnPlot(obj, features = "percent.mt", pt.size = 0) +
+  geom_hline(yintercept = thresh_percent.mt, linetype='dashed', col = 'red') + NoLegend()
 patchwork::wrap_plots(plot1, plot2, plot3, ncol = 3)
 rm(plot1, plot2, plot3)
 ```
@@ -158,8 +157,8 @@ obj <- subset(obj,
                 percent.mt < thresh_percent.mt)
 
 VlnPlot(obj, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3, pt.size = 0)
-plot1 <- FeatureScatter(obj, feature1 = "nCount_RNA", feature2 = "percent.mt") & NoLegend()
-plot2 <- FeatureScatter(obj, feature1 = "nCount_RNA", feature2 = "nFeature_RNA") & NoLegend()
+plot1 <- FeatureScatter(obj, feature1 = "nCount_RNA", feature2 = "percent.mt") + NoLegend()
+plot2 <- FeatureScatter(obj, feature1 = "nCount_RNA", feature2 = "nFeature_RNA") + NoLegend()
 plot1 + plot2
 rm(plot1, plot2)
 ```
@@ -425,3 +424,30 @@ The silhouette score for all samples are very low, meaning that the cells from e
 You learnt **how to automatically annotate cells in an scRNA-seq dataset, consisting of multiple samples**, by the example of one R package. It applies marker-based hierarchical gating which is very good if you have very clear binary markers that are either positive/negative. But what if you have gradients of gene expression levels? Or if you go very deep: if you want to look at different CD8 subtypes? At some point, you will run out of markers that are distinctly positive/negative. In this case, gene expression profiles can be very useful for further refinement (e.g. [this tool](https://github.com/carmonalab/ProjecTILs)).
 
 Furthermore, we have seen that **batch effect needs to be mitigated when combining multiple datasets**. We also used silhouette scoring as a simple metric to quantify how well-clusters are defined (or mixed in this case) to evaluate the batch effect before and after "integration". You might ask: "but if I just mix the cells very well randomly, the silhouette score would be minimal, thus TECHNICAL batch effect perfectly removed...but then wouldn't cell types also be mixed, i.e. the BIOLOGICAL separation also be removed"? Yes, indeed. In older integration method that was a big problem: cells were mixed and batch effect somewhat mitigated but at the cost of also mixing some celltypes. People have long thought about that and come up with different strategies to integrate scRNA-seq datasets. In the next exercise we will see a well-established (old) popular integration method called "Harmony" and compare its results with a newer method which tried to address its weaknesses. By this, we hope to sharpen your eyes to detect and check for technical artefacts, in order to prevent them. Always be aware of your data's quality and possible technical and biological artefacts, possible biases and limitations.
+
+
+# \-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\--
+
+# Solution
+
+The explanation why the solution contains exactly these thresholds is:
+Unfortunately there is no _one correct solution_. It's rather an estimation by experience and depending on your needs.
+Setting LESS stringent thresholds includes more cells...and more low quality cells.
+Setting MORE stringent thresholds includes less cells...and less low quality cells.
+
+One possibility might be that you set it to remove the lowest 1% (or 0.1% or ...) and highest 1% of cells for each threshold.
+However, as explained in exercise 1, the thresholds could be different for each cell type.
+Also, it might be that one or multiple sample were in bad shape, e.g. because the cells were stored or treated under stressful conditions, and subsequently more stringent thresholds might be required.
+
+```{r warning=FALSE}
+thresh_nFeature_RNA <- c(200, 5000)
+thresh_percent.mt <- 17
+
+plot1 <- VlnPlot(obj, features = "nFeature_RNA", pt.size = 0) +
+  geom_hline(yintercept = thresh_nFeature_RNA, linetype='dashed', col = 'red') + NoLegend()
+plot2 <- VlnPlot(obj, features = "nCount_RNA", pt.size = 0) + NoLegend()
+plot3 <- VlnPlot(obj, features = "percent.mt", pt.size = 0) +
+  geom_hline(yintercept = thresh_percent.mt, linetype='dashed', col = 'red') + NoLegend()
+patchwork::wrap_plots(plot1, plot2, plot3, ncol = 3)
+rm(plot1, plot2, plot3)
+```
