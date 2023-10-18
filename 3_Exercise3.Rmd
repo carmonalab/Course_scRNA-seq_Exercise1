@@ -134,6 +134,8 @@ Looking at the alpha celltype cluster again, compared to Harmony integration, ST
 
 # Calculate integration metrics after batch correction
 
+## Silhouette score per sample
+
 In Exercise 2, we calculated the average silhouette width per sample as a metric to investigate batch effect and mitigation thereof. Lets do that again here:
 
 ```{r}
