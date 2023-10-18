@@ -12,8 +12,7 @@ output:
 
 -   Apply what you learnt in Exercise 1
 
--   Go big, automation makes it possible!\
-    -\> Use an R package for automated cell annotation across multiple samples in *one* dataset
+-   Use an R package for automated cell annotation across multiple samples in *one* dataset
 
 -   Combine multiple datasets
 
@@ -66,7 +65,7 @@ If not done before
 ```{r}
 # Download the Peripheral Blood Mononuclear Cells (PBMC) dataset
 destfile <- file.path(path_data, "Archive.zip")
-if (!exists(destfile)) {
+if (!file.exists(destfile)) {
   download.file(url = "https://www.dropbox.com/scl/fi/frnqtdn97ybw2s8g2k9xj/Archive.zip?rlkey=5zx2i97nzvce98snjsq77ta56&dl=1",
               destfile = destfile)
   # Decompress file
@@ -194,99 +193,31 @@ scGate uses a [database of expert-selected markers](https://github.com/carmonala
 
 ![](images/scGate_hierarchical_gating.png)
 
-## Run scGate models to annotate cell types
-
-### Select scGate pre-defined gating models
-
-In this case we will select a collection of gating models intented to classify cells from the tumor micro-environment at high-resolution, called "TME_HiRes"
-
-```{r, fig.width=10, fig.height=10}
-#Get scGate database of pre-defined gating models
-scGate_models_DB <- get_scGateDB(branch = "master", verbose = T, force_update = TRUE)
-models.TME <- scGate_models_DB$human$TME_HiRes
-```
-
-### Run scGate
-
-
-TODO: Perhaps run first a single sample to provide a simpler example, separating the classification step, from the visualization.
-
 ```{r}
-
-```
-
-
-We run scGate on single samples to prevent batch effects between samples. So, we split the object into a list of objects, one for each sample
-
-We will then find the highly variable features for each sample separately and then combine the ones that are consistently found variable across all samples. This is in order to prevent a bias if all variable features would be selected from only one or a few samples.
-
-Additionally, we want to exclude variable genes like cell cycle genes that might be variable for each cell type (at some point in time) but do not contribute to distinguish BETWEEN cell types. Also genes like heat-shock proteins might vary, depending on cell stress, or immunoglobulin or TCR for immune cells but are not helpful to distinguish BETWEEN cell types.
-
-```{r}
-# Split object into list of objects (by sample)
-Idents(obj) <- "orig.ident"
-obj.list <- SplitObject(obj)
-
-# To speed things up, we only keep the first 5 samples for further analysis
-obj.list <- obj.list[1:5]
-
-cache_filename <- file.path(path_output,"exercise2_scGate_annotated_list.rds")
-
+cache_filename <- file.path(path_output,"exercise2_processed_obj.rds")
 nfeatures <- 2000
 ndim <- 30
-my.genes.blocklist <- GetSignature(SignatuR$Hs)[c("Pseudogenes", "HSP", "Non-coding", "cellCycle.G1S", "cellCycle.G2M", "Mito", "Ribo", "TCR", "Immunoglobulins")]
 
-# As the cell annotation takes some time, we use the full power of  our modern CPUs having multiple cores
-# We run the calculation in a parallel for-loop, meaning we process several samples at once, distributed across CPU cores, one sample per core
-# For long calculation steps, it is advisable to save them afterwards, so we can just reload from this step later without needing to re-process everything
 if (file.exists(cache_filename)) {
-  obj.list <- readRDS(cache_filename)
+  obj <- readRDS(cache_filename)
 } else {
-  ncores <- parallel::detectCores()
-  for (sample in names(obj.list)) {
-    obj.list[[sample]] <- NormalizeData(obj.list[[sample]])
-    obj.list[[sample]] <- scGate(obj.list[[sample]], model=models.TME, ncores = ncores-1)
-    obj.list[[sample]] <- FindVariableFeatures.STACAS(obj.list[[sample]], nfeat=nfeatures*2, genesBlockList=my.genes.blocklist)
-    # here we ask for *2 variable features, and then we'll select those nfeatures that are consistently variable across datasets
-    obj.list[[sample]] <- ScaleData(obj.list[[sample]])
-    obj.list[[sample]] <- RunPCA(obj.list[[sample]], ndims.print = 1:5, nfeatures.print = 5)
-    obj.list[[sample]] <- RunUMAP(obj.list[[sample]], reduction = "pca", dims = 1:ndim, seed.use=my_seed)
-  }
-  saveRDS(obj.list, cache_filename)
+  obj <- NormalizeData(obj)
+  obj <- FindVariableFeatures(obj, nfeat=nfeatures)
+  obj <- ScaleData(obj)
+  obj <- RunPCA(obj, npcs=ndim)
+  obj <- RunUMAP(obj, dims = 1:ndim)
+  
+  # Select scGate pre-defined gating models
+  # In this case we will select a collection of gating models intended to classify cells from the tumor micro-environment at high-resolution, called "TME_HiRes"
+  # This step will take about 1-2 minutes
+  scGate_models_DB <- get_scGateDB(branch = "master", verbose = T, force_update = TRUE)
+  models.TME <- scGate_models_DB$human$TME_HiRes
+  
+  # Annotate cells
+  obj <- scGate(obj, model=models.TME)
+  
+  saveRDS(obj, cache_filename)
 }
-```
-
-```{r}
-pll.s <- list()
-for (sample in names(obj.list)){
-  (length(table(obj.list[[sample]]$scGate_multi)) == 0) && next
-  pll.s[[sample]] <- DimPlot(obj.list[[sample]], reduction = "umap", group.by = "scGate_multi", label=T, raster = FALSE ) + theme(aspect.ratio=1) + ggtitle(sample)
-}
-pll.s.w <- wrap_plots(pll.s)
-ggsave(plot = pll.s.w, file.path(path_plots,"UMAP_scGate_broad_classification_perSample.png"),width = 20, height = 20, limitsize = F)
-
-rm(pll.s, pll.s.w)
-gc()
-```
-
-## Merge list of objects back into one object
-
-```{r, fig.width=10, fig.height=10}
-obj <- merge(obj.list[[1]],obj.list[2:length(obj.list)])
-
-obj@misc$batch.metadata <- obj.list[[1]]@misc$batch.metadata
-hvg <- SelectIntegrationFeatures(obj.list, nfeatures = nfeatures) # we obtained highly variable genes that are consistent across samples
-obj@assays$RNA@var.features <- hvg
-
-rm(obj.list)
-gc()
-```
-
-# Run pre-processing on complete obj
-
-```{r}
-obj <- obj |> NormalizeData() |> ScaleData() |> RunPCA(npcs=ndim) |> RunUMAP(dims = 1:ndim)
-saveRDS(obj, file.path(path_output,"exercise2_processed_obj.rds"))
 ```
 
 # Plot UMAP
@@ -297,6 +228,14 @@ ggsave(file.path(path_plots,"UMAP_full_by_sample.png"), width = 10, height = 10)
 DimPlot(obj, reduction = "umap", group.by = "scGate_multi", label = TRUE) + theme(aspect.ratio=1)
 ggsave(file.path(path_plots,"UMAP_full_by_annotation.png"), width = 10, height = 10)
 ```
+
+Some cells, highlighted in grey, are not annotated ("NA"). One big grey cluster seems to stem from only one patient.
+
+-   What do you think these cells could be? Consider: these are whole tumor samples and we annotated immune cells, tissue, ... which cells are we missing?
+
+-   Why do you think these are difficult to consistently annotate across different patient samples?
+
+-   Bonus question: do you have an idea which feature might distinguish these cells from others?
 
 # Visualize the expression of some genes
 
@@ -309,111 +248,180 @@ ggsave(file.path(path_plots,"UMAP_features.png"),width = 40, height = 30)
 # Check for batch effects
 
 ```{r fig.height=10, fig.width=10}
-# Remove obj from RAM memory
-rm(obj)
-gc()
-
-# Load obj.list from above
-obj.list <- readRDS(cache_filename)
-
 # Download data
-download.file("https://www.dropbox.com/scl/fi/zrf8v74tytw94lm1ex1j6/samples_from_other_studies.rds?rlkey=4yg1magn4utn9ohxr10np2pq0&dl=1",
-              file.path(path_data, "samples_from_other_studies.rds"))
-samples_from_other_studies <- readRDS(file.path(path_data, "samples_from_other_studies.rds"))
+download.file("https://www.dropbox.com/scl/fi/nfj9lr2tz85v02607vvaj/sample_from_another_dataset.rds?rlkey=oq5zsm4wwtlhio48em6m0z8yh&dl=1",
+              file.path(path_data, "sample_from_another_dataset.rds"))
+sample_from_another_dataset <- readRDS(file.path(path_data, "sample_from_another_dataset.rds"))
 
-obj.list.multi_study <- c(obj.list, samples_from_other_studies)
-rm(obj.list, samples_from_other_studies)
+obj.multi_study <- merge(obj, sample_from_another_dataset)
+rm(sample_from_another_dataset)
 gc()
 
-hvg <- SelectIntegrationFeatures(obj.list.multi_study, nfeatures = nfeatures) # we obtained highly variable genes that are consistent across samples
+# For your convenience, the cell types in the ""sample_from_another_dataset" were already assigned
+# So, no need to run scGate for cell annotation again
+obj.multi_study <- obj.multi_study |> NormalizeData() |> FindVariableFeatures(nfeat=nfeatures) |> ScaleData() |> RunPCA(npcs=ndim) |> RunUMAP(dims = 1:ndim)
 
-obj.multi_study <- merge(obj.list.multi_study[[1]], obj.list.multi_study[2:length(obj.list.multi_study)])
-obj.multi_study@assays$RNA@var.features <- hvg
-rm(obj.list.multi_study)
-gc()
-
-obj.multi_study <- obj.multi_study |> NormalizeData() |> ScaleData() |> RunPCA(npcs=ndim) |> RunUMAP(dims = 1:ndim)
-
-DimPlot(obj.multi_study, reduction = "umap", group.by = "scGate_multi", label = TRUE) + theme(aspect.ratio=1)
+DimPlot(obj.multi_study, reduction = "umap", group.by = "scGate_multi", label = F) + theme(aspect.ratio=1)
 DimPlot(obj.multi_study, reduction = "umap", group.by = "orig.ident") + theme(aspect.ratio=1)
 ```
 
-Looking at the CD4T cluster(s) in the above UMAP, it seems that the CD4 T cells from the initial dataset (orig.ident sample names starting with "sc5r") cluster together and are mixed. However, there are two distinct separate clusters of CD4 cells for the "study1_sample" and "study2_sample", respectively. Is it likely that these patients show completly different and unique CD4 T cells cell types? The "study1_sample", like the "sc5r" samples, stems from a breast tumor sample. The "study2_sample", stems from a head and neck squamous cell carcinoma (HNSCC) tumor sample.
+Looking at the above UMAPs, you can see that the study1_sample that was added from another dataset forms completely separate clusters. What happened here? Does this patient have completely different CD4 and CD8 celltypes? No - it's just batch effect.
 
-There might be some specific CD4 T cell subtypes in a different tissue/cancer but it is unlikely that all CD4 T cells from these other study samples are COMPLETELY different. After all, we all share the same CD4 T cells and subtypes. So, at least for the "study1_sample" (given that the treatment was similar) the cells should be well mixed...but they are not! Why?
+## Batch effect explained
 
-"Single-cell data is often compiled from multiple experiments with differences in capturing times, handling personnel, reagent lots, equipments, and even technology platforms. These differences lead to large variations or batch effects in the data, and can confound biological variations of interest during data integration. As such, effective batch-effect removal is essential. Batch effects can be highly nonlinear, making it difficult to correctly align different datasets while preserving key biological variations" ([Tran et al. 2020](https://genomebiology.biomedcentral.com/articles/10.1186/s13059-019-1850-9#:~:text=Batch%20effects%20can%20be%20highly,(scRNA%2Dseq)%20data.)).
+"Single-cell data is often compiled from multiple experiments with differences in capturing times, handling personnel, reagent lots, equipment, and even technology [=sequencing] platforms. These differences lead to large variations or batch effects in the data, and can confound biological variations of interest during data integration. As such, effective batch-effect removal is essential. Batch effects can be highly nonlinear, making it difficult to correctly align different datasets while preserving key biological variations" ([Tran et al. 2020](https://genomebiology.biomedcentral.com/articles/10.1186/s13059-019-1850-9#:~:text=Batch%20effects%20can%20be%20highly,(scRNA%2Dseq)%20data.)).
 
-For this reason, several different tools have been developped trying to address this problem. You will learn about two of them in exercise 3. For now, lets try to find a suitable metric to quantify this batch effect, in order to later quantify to what degree we can mitigate it.
+For this reason, several different tools have been developed trying to address this problem. You will learn about 2 different tools (one in exercise 2 and another one in exercise 3) and how to evaluate whether batch effect was successfully mitigated or not.
 
-## ℹ️ Exercise
+## Evaluate the batch effect in CD8 T cells
 
-### Quantify the batch effect in CD4 T cells
-
-```{r}
-obj.CD4T.multi <- subset(obj.multi_study, subset = scGate_multi == "CD4T")
-obj.CD4T <- subset(obj.CD4T.multi, subset = orig.ident %in% unique(obj.multi_study@meta.data[["orig.ident"]])[1:5])
-
-obj.CD4T <- obj.CD4T |> NormalizeData() |> FindVariableFeatures() |> ScaleData() |> RunPCA(npcs=30) |> RunUMAP(dims = 1:30)
-DimPlot(obj.CD4T, reduction = "pca", group.by = "orig.ident") + theme(aspect.ratio=1)
-
-obj.CD4T.multi <- obj.CD4T.multi |> NormalizeData() |> FindVariableFeatures() |> ScaleData() |> RunPCA(npcs=30) |> RunUMAP(dims = 1:30)
-DimPlot(obj.CD4T.multi, reduction = "pca", group.by = "orig.ident") + theme(aspect.ratio=1)
-```
-
--   What can you observe in the above PCA plots
+-   First, lets plot the data
 
     -   The first PCA biplot shows only samples from the same "sc5r" dataset
 
     -   The second PCA biplot shows samples from all three datasets together
 
--   Calculate the average silhouette score (from samples) from the "sc5r" dataset
-
-    -   Create a silhouette plot, e.g. using\
-        factoextra::fviz_silhouette(sil, ggtheme = theme_classic())
-
--   Calculate the average silhouette score (from samples) from all three datasets together
+-   What can you observe in the PCA plots below?
 
 ```{r}
-Idents(obj.CD4T) <- "orig.ident"
-dist.matrix <- dist(Embeddings(object = obj.CD4T[["pca"]])[, 1:ndim])
-clusters <- obj.CD4T$orig.ident
-sil <- cluster::silhouette(as.numeric(as.factor(clusters)), dist = dist.matrix)
-obj.CD4T$sil <- sil[, "sil_width"]
+# We create a subset of CD8T cells from the initial dataset
+all_samples <- unique(obj.multi_study$orig.ident)
+all_samples_except_study1_sample <- all_samples[!grepl("study1_sample", all_samples)]
+obj.CD8T <- subset(obj.multi_study, subset = scGate_multi == "CD8T" & orig.ident %in% all_samples_except_study1_sample)
 
-sample_sil_single_study <- c()
-for (sample in unique(obj.CD4T$orig.ident)) {
-  a <- mean(obj.CD4T$sil[which(obj.CD4T$orig.ident == sample)])
-  sample_sil_single_study <- append(sample_sil_single_study, a)
-}
-sample_sil_single_study <- setNames(sample_sil_single_study, unique(obj.CD4T$orig.ident)) 
-sample_sil_single_study
-mean(sample_sil_single_study)
+# # We create a subset of CD8T cells from the initial dataset and including the newly added sample from another daataset
+obj.CD8T.multi <- subset(obj.multi_study, subset = scGate_multi == "CD8T")
 
-factoextra::fviz_silhouette(sil, ggtheme = theme_classic())
+obj.CD8T <- obj.CD8T |> NormalizeData() |> FindVariableFeatures() |> ScaleData() |> RunPCA(npcs=ndim) |> RunUMAP(dims = 1:ndim)
+DimPlot(obj.CD8T, reduction = "pca", group.by = "orig.ident") + theme(aspect.ratio=1)
 
-Idents(obj.CD4T.multi) <- "orig.ident"
-dist.matrix <- dist(Embeddings(object = obj.CD4T.multi[["pca"]])[, 1:ndim])
-clusters <- obj.CD4T.multi$orig.ident
-sil <- cluster::silhouette(as.numeric(as.factor(clusters)), dist = dist.matrix)
-obj.CD4T.multi$sil <- sil[, "sil_width"]
-
-sample_sil_multi_study <- c()
-for (sample in unique(obj.CD4T.multi$orig.ident)) {
-  a <- mean(obj.CD4T.multi$sil[which(obj.CD4T.multi$orig.ident == sample)])
-  sample_sil_multi_study <- append(sample_sil_multi_study, a)
-}
-sample_sil_multi_study <- setNames(sample_sil_multi_study, unique(obj.CD4T.multi$orig.ident)) 
-sample_sil_multi_study
-mean(sample_sil_multi_study)
-
-factoextra::fviz_silhouette(sil, ggtheme = theme_classic(), print.summary = TRUE)
+obj.CD8T.multi <- obj.CD8T.multi |> NormalizeData() |> FindVariableFeatures() |> ScaleData() |> RunPCA(npcs=ndim) |> RunUMAP(dims = 1:ndim)
+DimPlot(obj.CD8T.multi, reduction = "pca", group.by = "orig.ident") + theme(aspect.ratio=1)
 ```
+
+Let's put a number on this, so we can quantify the batch effect and whether we actually can reduce it. One metric to do sp is the silhouette coefficient that you have used before in the previous module of this course.
+
+## Silhouette score to assess clustering
+
+In short, the silhouette coefficient tells us how well-defined the clusters are. A higher silhouette coefficient indicates that the clusters are well apart from each other and clearly distinguished, while a lower or negative silhouette coefficient suggests that the clusters might be overlapping or poorly defined.
+
+-   What do we want in this case, is a high or low silhouette score?
+
+Remember that we want the batches (clusters) to be mixed. In the above PCA we saw that the sample clusters from dataset 1 are well mixed, i.e. there is no batch effect, and that the sample from the second dataset formed a well-defined cluster well apart from the others.
+
+-   So, what are the silhouette coefficients for the samples in dataset 1 (no batch effect)? And what is the silhouette coefficient for all samples together (i.e. the silhouette coefficient of "study1_sample")? What should the silhouette scores be after batch effect mitigation, lower or higher?
+
+```{r}
+Idents(obj.CD8T) <- "orig.ident"
+Idents(obj.CD8T.multi) <- "orig.ident"
+
+# Define function to calculate silhouette widths
+# INPUT: Seurat object with sample annotation stored in object$orig.ident
+# RETURNS: A list, containing:
+# - plot: a silhouette plot
+# - SilW_per_cell: Silhouette coefficient for each cell (Vector)
+# - AvgSilW_per_sample: Average silhouette coefficient per sample (Vector)
+
+calc_sil_widths <- function(object){
+  return_list <- list()
+  dist.matrix <- dist(Embeddings(object = object[["pca"]])[, 1:ndim])
+  clusters <- object$orig.ident
+  sil <- cluster::silhouette(as.numeric(as.factor(clusters)), dist = dist.matrix)
+  object$sil <- sil[, "sil_width"]
+  
+  return_list[["plot"]] <- factoextra::fviz_silhouette(sil, print.summary = TRUE, ggtheme = theme_classic()) +
+    scale_fill_discrete(labels = unique(object$orig.ident)) + guides(col="none")
+  
+  SilW_per_cell <- c()
+  AvgSilW_per_sample <- c()
+  for (sample in unique(object$orig.ident)) {
+    sample_cells_sils <- object$sil[which(object$orig.ident == sample)]
+    SilW_per_cell <- c(SilW_per_cell, sample_cells_sils)
+    AvgSilW_per_sample <- c(AvgSilW_per_sample, setNames(mean(sample_cells_sils), sample))
+  }
+  return_list[["SilW_per_cell"]] <- SilW_per_cell
+  return_list[["AvgSilW_per_sample"]] <- AvgSilW_per_sample
+  return(return_list)
+}
+
+# Lets have a look at the silhouette coefficients looking at only the samples from dataset 1
+obj.CD8T.sil_list <- calc_sil_widths(obj.CD8T)
+print(obj.CD8T.sil_list$plot)
+
+obj.CD8T.multi.sil_list <- calc_sil_widths(obj.CD8T.multi)
+print(obj.CD8T.multi.sil_list$plot)
+```
+
+```{r}
+print(paste("The single study average silhouette width (across all cells in all samples) is:", mean(obj.CD8T.sil_list$SilW_per_cell) |> round(2)))
+print(paste("The multi study average silhouette width (across all cells in all samples) is:", mean(obj.CD8T.multi.sil_list$SilW_per_cell) |> round(2)))
+
+print(paste("The average silhouette width of sample 'study1_sample' is:", obj.CD8T.multi.sil_list$AvgSilW_per_sample["study1_sample"] |> round(2)))
+```
+
+As you can see, study1_sample shows a much higher average silhouette width than all the other samples, as it forms a very distinct separate cluster. Thereby, it increases the overall average silhouette score as well.
+
+## Apply batch correction
+
+Here we use the STACAS package as an example of one of many different "integration" methods. The different methods use different theoretical approaches to solve this problem but the goal of all is the same: to mitigate batch effect.
+
+```{r}
+obj.multi_study.list <- SplitObject(obj.multi_study, split.by = "orig.ident")
+obj.multi_study.batch_corrected <- Run.STACAS(obj.multi_study.list)
+obj.multi_study.batch_corrected <- RunUMAP(obj.multi_study.batch_corrected, reduction = "pca", dims = 1:ndim, seed.use=my_seed)
+rm(obj.multi_study.list)
+gc()
+```
+
+## Clustering after batch correction
+
+```{r}
+# Lets compare the UMAPs
+## BEFORE
+DimPlot(obj.multi_study, reduction = "umap", group.by = "scGate_multi", label = F) +
+  theme(aspect.ratio=1) +
+  ggtitle("UMAP - BEFORE batch correction - clusters labelled by cell types")
+DimPlot(obj.multi_study, reduction = "umap", group.by = "orig.ident") +
+  theme(aspect.ratio=1) +
+  ggtitle("UMAP - BEFORE batch correction - clusters labelled by sample")
+
+DimPlot(obj.multi_study.batch_corrected, reduction = "umap", group.by = "scGate_multi", label = F) +
+  theme(aspect.ratio=1) +
+  ggtitle("UMAP - AFTER batch correction - clusters labelled by cell types")
+DimPlot(obj.multi_study.batch_corrected, reduction = "umap", group.by = "orig.ident") +
+  theme(aspect.ratio=1) +
+  ggtitle("UMAP - AFTER batch correction - clusters labelled by sample")
+
+
+# As above, lets have a look at the PCAs and silhouette widths but now after we applied batch correction
+obj.CD8T.batch_corrected <- subset(obj.multi_study.batch_corrected, subset = scGate_multi == "CD8T" & orig.ident %in% all_samples_except_study1_sample)
+obj.CD8T.multi.batch_corrected <- subset(obj.multi_study.batch_corrected, subset = scGate_multi == "CD8T")
+
+DimPlot(obj.CD8T.batch_corrected, reduction = "pca", group.by = "orig.ident") +
+  theme(aspect.ratio=1) +
+  ggtitle("PCA - AFTER batch correction - all samples from same dataset")
+DimPlot(obj.CD8T.multi.batch_corrected, reduction = "pca", group.by = "orig.ident") +
+  theme(aspect.ratio=1) +
+  ggtitle("PCA - AFTER batch correction - with study1_sample from another dataset")
+
+# Lets have a look at the silhouette coefficients looking at only the samples from dataset 1
+obj.CD8T.BC.sil_list <- calc_sil_widths(obj.CD8T.batch_corrected)
+print(obj.CD8T.BC.sil_list$plot)
+print(paste("The single study average silhouette width (across all cells) is:", mean(obj.CD8T.BC.sil_list$SilW_per_cell)))
+
+obj.CD8T.multi.BC.sil_list <- calc_sil_widths(obj.CD8T.multi.batch_corrected)
+print(obj.CD8T.multi.BC.sil_list$plot)
+print(paste("The multi study average silhouette width (across all cells) is:", mean(obj.CD8T.multi.BC.sil_list$SilW_per_cell)))
+```
+
+You can see that after batch correction, in the UMAP, the cells from study1_sample are well mixed with the cells from the original dataset. For example, the CD4 cells from study1_sample are among the CD4 cellsfrom the original dataset and do not form a separate cluster anymore.
+
+Also in the PCA, the cells from all samples are well mixed.
+
+The silhouette score for all samples are very low, meaning that the cells from each sample are well mixed with the cells from the other samples.
 
 # Conclusions
 
-TODO ...
+You learnt **how to automatically annotate cells in an scRNA-seq dataset, consisting of multiple samples**, by the example of one R package. It applies marker-based hierarchical gating which is very good if you have very clear binary markers that are either positive/negative. But what if you have gradients of gene expression levels? Or if you go very deep: if you want to look at different CD8 subtypes? At some point, you will run out of markers that are distinctly positive/negative. In this case, gene expression profiles can be very useful for further refinement (e.g. [this tool](https://github.com/carmonalab/ProjecTILs)).
 
-what is obj.list[[1]]@misc$batch.metadata
-
-Hierarchical gating is very good if you have very clear binary markers that are either positive/negative. But what if you have gradients of gene expression levels? Or if you go very deep: if you want to look at different CD8 subtypes? At some point, you will run out of markers that are distinctly positive/negative. In this case, gene expression profiles can be very useful for further refinement (e.g. [this tool](https://github.com/carmonalab/ProjecTILs)).
+Furthermore, we have seen that **batch effect needs to be mitigated when combining multiple datasets**. We also used silhouette scoring as a simple metric to quantify how well-clusters are defined (or mixed in this case) to evaluate the batch effect before and after "integration". You might ask: "but if I just mix the cells very well randomly, the silhouette score would be minimal, thus TECHNICAL batch effect perfectly removed...but then wouldn't cell types also be mixed, i.e. the BIOLOGICAL separation also be removed"? Yes, indeed. In older integration method that was a big problem: cells were mixed and batch effect somewhat mitigated but at the cost of also mixing some celltypes. People have long thought about that and come up with different strategies to integrate scRNA-seq datasets. In the next exercise we will see a well-established (old) popular integration method called "Harmony" and compare its results with a newer method which tried to address its weaknesses. By this, we hope to sharpen your eyes to detect and check for technical artefacts, in order to prevent them. Always be aware of your data's quality and possible technical and biological artefacts, possible biases and limitations.
