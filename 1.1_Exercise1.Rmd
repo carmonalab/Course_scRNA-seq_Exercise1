@@ -204,8 +204,8 @@ In the example below, we visualize QC metrics, and use these to filter cells.
 VlnPlot(pbmc, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3)
 
 # FeatureScatter is typically used to visualize feature-feature relationships, but can be used for anything calculated by the object, i.e. columns in object metadata, PC scores etc.
-plot1 <- FeatureScatter(pbmc, feature1 = "nCount_RNA", feature2 = "percent.mt") & NoLegend()
-plot2 <- FeatureScatter(pbmc, feature1 = "nCount_RNA", feature2 = "nFeature_RNA") & NoLegend()
+plot1 <- FeatureScatter(pbmc, feature1 = "nCount_RNA", feature2 = "percent.mt") + NoLegend()
+plot2 <- FeatureScatter(pbmc, feature1 = "nCount_RNA", feature2 = "nFeature_RNA") + NoLegend()
 plot1 + plot2
 rm(plot1, plot2)
 ```
@@ -215,12 +215,12 @@ rm(plot1, plot2)
 -   We filter cells that have \>5% mitochondrial counts
 
 ```{r warning=FALSE}
-# Seurat plots can be easily modified with the popular ggplots2 library by chaining it with the "&" operator
-plot1 <- VlnPlot(pbmc, features = "nFeature_RNA") &
-  geom_hline(yintercept = c(200, 2500), linetype='dashed', col = 'red') & NoLegend()
-plot2 <- VlnPlot(pbmc, features = "nCount_RNA") & NoLegend()
-plot3 <- VlnPlot(pbmc, features = "percent.mt") &
-  geom_hline(yintercept = 5, linetype='dashed', col = 'red') & NoLegend()
+# Seurat plots can be easily modified with the popular ggplots2 library by chaining it with the "+" operator
+plot1 <- VlnPlot(pbmc, features = "nFeature_RNA") +
+  geom_hline(yintercept = c(200, 2500), linetype='dashed', col = 'red') + NoLegend()
+plot2 <- VlnPlot(pbmc, features = "nCount_RNA") + NoLegend()
+plot3 <- VlnPlot(pbmc, features = "percent.mt") +
+  geom_hline(yintercept = 5, linetype='dashed', col = 'red') + NoLegend()
 patchwork::wrap_plots(plot1, plot2, plot3, ncol = 3)
 rm(plot1, plot2, plot3)
 
@@ -228,8 +228,8 @@ rm(plot1, plot2, plot3)
 pbmc <- subset(pbmc, subset = nFeature_RNA > 200 & nFeature_RNA < 2500 & percent.mt < 5)
 
 # FeatureScatter is typically used to visualize feature-feature relationships, but can be used for anything calculated by the object, i.e. columns in object metadata, PC scores etc.
-plot1 <- FeatureScatter(pbmc, feature1 = "nCount_RNA", feature2 = "percent.mt") & NoLegend()
-plot2 <- FeatureScatter(pbmc, feature1 = "nCount_RNA", feature2 = "nFeature_RNA") & NoLegend()
+plot1 <- FeatureScatter(pbmc, feature1 = "nCount_RNA", feature2 = "percent.mt") + NoLegend()
+plot2 <- FeatureScatter(pbmc, feature1 = "nCount_RNA", feature2 = "nFeature_RNA") + NoLegend()
 plot1 + plot2
 rm(plot1, plot2)
 
