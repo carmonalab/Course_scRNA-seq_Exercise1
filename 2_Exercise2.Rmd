@@ -127,11 +127,11 @@ barplot(sort(sample.size.pre), las=2)
 
 ## ℹ️ Exercise
 
-### Select appropriate QC metrics
+### Define cell quality control (QC) parameters
 
--   Adjust and select appropriate nFeature_RNA upper threshold
+-   Define minimum and maximum values accepted for "nFeature_RNA"
 
--   Adjust and select appropriate percent.mt threshold
+-   Define maximum value accepted for "percent.mt"
 
 ```{r}
 thresh_nFeature_RNA <- c(xxx, yyy) # Replace xxx and yyy
@@ -194,15 +194,15 @@ DimPlot(obj, reduction = "umap", group.by = "orig.ident") + theme(aspect.ratio=1
 
 # Automated cell type annotation with scGate
 
-In the previous exercise you annotated clusters of cells manually. You did so by checking which genes are most highly expressed in a cluster and prefereably not in all others, i.e. which specific gene expression characterizes your cell type of interest. As this is very tedious and repetitive, many tools have been developed to automate this process. The basic principle is the same: cell types are characterized by a specific gene expression pattern. Some tools use single genes or a small set of highly specific expression markers. Other tools use extensive sets of genes, called "signatures".
+In the previous exercise you annotated clusters of cells manually. You did so by checking which genes are most highly expressed in a cluster and prefereably not in the others, i.e. which specific gene expression characterizes your cell type of interest. As this is time-consuming and subjective, many tools have been developed to automate this process. The basic principle is the same: cell types are characterized by a specific gene expression pattern. Popular tools for automated scRNAseq cell type annotation include SingleR, CellTypist, and Garnett.
 
-However, each method comes with its own advantages, limitations and drawbacks. For example, on one hand, some annotation tools can annotate a wide range of cell types across many tissues but lack the resolution to annotate subtypes. On the other hand, some packages are highly focused on a specific cell type but can go very deep and are able to very accurately annotate them and their subtypes at high-resolution.
+In this exercise, you will apply [scGate](https://github.com/carmonalab/scGate), an R package that automatizes the typical manual marker-based approach to cell type annotation (https://doi.org/10.1093/bioinformatics/btac141). Briefly, scGate takes as input: i) a gene expression matrix stored in a Seurat object and ii) a “gating model” (GM), consisting of a set of marker genes that define the cell population of interest. The GM can be as simple as a single marker gene, or a combination of positive and negative markers. More complex GMs can be constructed in a hierarchical fashion, akin to gating strategies employed in flow cytometry.
+For example, you can identify immune cells as CD45+. Then, immune cells can be further split into e.g. CD45+CD8+ cells and others that are CD45+CD8-. B cells for example are CD45+CD8-CD20+ and so on.
+![](images/scGate_hierarchical_gating.png)
 
-In this exercise, you will apply [scGate](https://github.com/carmonalab/scGate), an R package that automatizes the typical manual marker-based approach to cell type annotation, to enable accurate and intuitive purification of a cell population, without requiring reference gene expression profiles or training data. It's mostly focused on immune cells and other cell types found in tumors.
+You can define your own GM or use pre-defined GMs from [scGate models database](https://github.com/carmonalab/scGate_models/blob/master/human/generic/master_table.tsv)
 
-scGate uses a [database of expert-selected markers](https://github.com/carmonalab/scGate_models/blob/master/human/generic/master_table.tsv) that can be arranged in a hierarchical order. For example, you identify immune cells as CD45+. However, immune cells can be further sub-classified into e.g. CD45+CD8+ cells and others that are CD45+CD8-. B cells for example are CD45+CD8-CD20+ and so on.
-
-![](images/scGate_hierarchical_gating.png) In this case we will use a pre-defined collection of gating models intended to classify cells from the tumor micro-environment at high-resolution, called "TME_HiRes" This step should take about 1-2 minutes
+In this exercise we will use a pre-defined collection of gating models intended to classify cells from the tumor micro-environment at high-resolution, called "TME_HiRes" This step should take about 1-2 minutes
 
 ```{r}
 # download database of gating models
@@ -215,7 +215,7 @@ saveRDS(obj, cache_filename) # save results
 #obj <- readRDS(cache_filename) # in case you want to recover saved results
 ```
 
-# Plot UMAP and export graphics
+## Plot UMAP and export graphics
 
 ```{r}
 DimPlot(obj, reduction = "umap", group.by = "orig.ident") + theme(aspect.ratio=1)
@@ -226,27 +226,25 @@ ggsave(file.path(path_plots,"UMAP_full_by_annotation.png"), width = 10, height =
 
 ## Exercise
 
-Some cells, highlighted in grey, are not annotated ("NA"). One big grey cluster seems to stem from only one patient.
 
--   What do you think these cells could be?
+- Calculate the cell type composition of each tumor sample
 
--   Why do you think these are difficult to consistently annotate across different patient samples?
+- Calculate and generate a plot showing the top differentially expressed genes in each cell type
 
--   Which feature might distinguish these cells from others?
+- Some cells were not annotated ("NA"). One big grey cluster seems to stem from only one patient.
 
-Myeloid cells (e.g. macrophages, monocytes, DCs) seem very close to each other in the UMAP space. Try sub-setting these cells and re-calculating UMAP.
+  -   What do you think these cells could be?
 
-# Visualize the expression of some genes
 
-```{r, fig.height=20, fig.width=20}
-myFeatures <- c("PTPRC","CD2","FOXP3","CD4","CD8A","SPI1","CD79A","MKI67","COL1A1","FCER1G","APOE","C1QB","MS4A1","RGS13","CSF3R","KLRD1","S100A9","S100A8") # just to explore
-FeaturePlot(obj, reduction = "umap", features = myFeatures, coord.fixed=T, ncol=5, order = T) 
-ggsave(file.path(path_plots,"UMAP_features.png"),width = 40, height = 30)
+```{r}
+YOUR CODE HERE 
+
 ```
+
 
 # Integrating samples from diverse datasets
 
-Next will be get a scRNAseq dataset of a breast tumor sample from a different study.
+Now we will download and explore another dataset (breast tumor sample) taken from a different study and patient cohort
 
 ```{r fig.height=10, fig.width=10}
 # Download data
@@ -266,17 +264,18 @@ DimPlot(obj.multi_study, reduction = "umap", group.by = "scGate_multi", label = 
 DimPlot(obj.multi_study, reduction = "umap", group.by = "orig.ident") + theme(aspect.ratio=1)
 ```
 
-Looking at the above UMAPs, you can see that cells from "study1_sample", coming from a different dataset, tend to form a separate cluster. What happened here? Does this patient have completely different immune cells?
+Looking at the above UMAPs, it seems that cells from "study1_sample" (coming from a different study) tend to form a separate cluster. 
+What happened here? Does this patient have completely different immune cells? Maybe yes, maybe no
 
 ## Batch effects explained
 
 "Single-cell data is often compiled from multiple experiments with differences in capturing times, handling personnel, reagent lots, equipment, and even technology platforms. These differences lead to large variations or batch effects in the data, and can confound biological variations of interest during data integration. As such, effective batch-effect removal is essential. Batch effects can be highly nonlinear, making it difficult to correctly align different datasets while preserving key biological variations" ([Tran et al. 2020](https://genomebiology.biomedcentral.com/articles/10.1186/s13059-019-1850-9#:~:text=Batch%20effects%20can%20be%20highly,(scRNA%2Dseq)%20data.)).
 
-For this reason, several different tools have been developed trying to address this problem. You will learn about 2 different tools (one in exercise 2 and another one in exercise 3) and how to evaluate whether batch effect was successfully mitigated or not.
+For this reason, several different tools have been developed trying to address this problem. 
 
 ## Apply batch correction
 
-Here we apply [STACAS](https://github.com/carmonalab/STACAS) method to correct for batch effects (<https://www.biorxiv.org/content/10.1101/2023.07.07.548105v1.full>). Other popular methods include Harmony and Seurat. The different methods use different approaches to solve this problem but the goal of all is the same: to mitigate batch effect.
+Here we apply one tool for correcting batch effects in single-cell RNA-seq data, [STACAS](https://github.com/carmonalab/STACAS). Other popular methods include [Harmony](https://github.com/immunogenomics/harmony) and [Seurat](https://satijalab.org/seurat/reference/runcca). The different methods use different approaches to solve this problem but the goal of all is the same: to mitigate batch effect.
 
 ```{r}
 obj.multi_study.list <- SplitObject(obj.multi_study, split.by = "orig.ident")
@@ -285,7 +284,7 @@ obj.multi_study.batch_corrected <- RunUMAP(obj.multi_study.batch_corrected, redu
 rm(obj.multi_study.list)
 ```
 
-# Lets compare the UMAPs
+## Lets compare UMAPs of uncorrected and corrected gene profiles
 
 ```{r}
 ## BEFORE
@@ -310,13 +309,7 @@ What do you interpret from these visualizations?
 
 ## Quantify batch effects
 
-For simplicity, we will focus on CD8 T cells.
-
--   What can you observe in the PCA plots below?
-
-    -   The first PCA biplot shows only samples from the same "sc5r" dataset
-
-    -   The second PCA biplot shows samples from all three datasets together
+Let's try to quantify the amount of batch effect. For simplicity, in the following exercise we will focus on CD8 T cells.
 
 ```{r}
 # We create a subset of CD8T cells from the initial dataset
@@ -333,12 +326,16 @@ DimPlot(obj.CD8T, reduction = "pca", group.by = "orig.ident") + theme(aspect.rat
 obj.CD8T.multi <- obj.CD8T.multi |> NormalizeData() |> FindVariableFeatures() |> ScaleData() |> RunPCA(npcs=ndim) |> RunUMAP(dims = 1:ndim)
 DimPlot(obj.CD8T.multi, reduction = "pca", group.by = "orig.ident") + theme(aspect.ratio=1)
 ```
+-   What can you observe in the PCA plots above?
 
-Let's put a number on this, so we can quantify the batch effect and whether we can actually reduce it. One metric to do so is the silhouette coefficient that you have used before in the previous module of this course.
+    -   The first PCA biplot shows only samples from the same "sc5r" dataset
 
-## Silhouette score to assess batch separation
+    -   The second PCA biplot shows samples from all three datasets together
 
-In short, the silhouette coefficient tells us how compact a clusters is. A silhouette coefficient close to 1 indicates that the clusters are well apart from each other and clearly distinguished, while a silhouette coefficient close to zero or negative suggests that the clusters are poorly defined or overlapping.
+
+## Silhouette score to assess batch effect
+
+Broadly speaking, the silhouette coefficient tells us how compact a clusters is. A silhouette coefficient close to 1 indicates that the clusters are well apart from each other and clearly distinguished, while a silhouette coefficient close to zero or negative suggests that the clusters are poorly defined or overlapping.
 
 -   When assessing silhouette of "batches" instead of clusters, what do we want, a high or low silhouette score?
 
@@ -409,45 +406,16 @@ DimPlot(obj.CD8T.batch_corrected, reduction = "pca", group.by = "orig.ident") +
 DimPlot(obj.CD8T.multi.batch_corrected, reduction = "pca", group.by = "orig.ident") +
   theme(aspect.ratio=1) +
   ggtitle("PCA - AFTER batch correction - with study1_sample from another dataset")
+```
 
-# Lets have a look at the silhouette coefficients looking at only the samples from dataset 1
-obj.CD8T.BC.sil_list <- calc_sil_widths(obj.CD8T.batch_corrected)
-print(obj.CD8T.BC.sil_list$plot)
-print(paste("The single study average silhouette width (across all cells) is:", mean(obj.CD8T.BC.sil_list$SilW_per_cell)))
 
-obj.CD8T.multi.BC.sil_list <- calc_sil_widths(obj.CD8T.multi.batch_corrected)
-print(obj.CD8T.multi.BC.sil_list$plot)
-print(paste("The multi study average silhouette width (across all cells) is:", mean(obj.CD8T.multi.BC.sil_list$SilW_per_cell)))
+Now calculate the silhouette scores for the corrected object and compare to the uncorrected
+```{r}
+### YOUR CODE HERE ###
 ```
 
 # Conclusions
 
-We have discussed **automatic cell type annotation in scRNA-seq data**. In general, automated approaches are preferable over manual annotation for consistency of results and scalability. In particular, marker-based approaches, such as scGate used here, have the advantage that are transparent and flexible, but depends on well defined marker genes. But what biologically relevant cell states are defined by gradients of gene expression levels? At some point, you might run out of markers that are distinctly positive/negative. In this case, alternative approaches such as reference mapping (e.g. [Projectils](https://github.com/carmonalab/ProjecTILs) and Seurat [label transfer](https://satijalab.org/seurat/articles/integration_mapping.html)) might be preferable.
+Automated approaches for cell type classification are preferable over manual annotation for consistency of results and scalability. In particular, marker-based approaches, such as scGate used here, have the advantage that are transparent and flexible, but depends on well defined marker genes. What if biologically relevant cell states are defined by subtle gradients of gene expression levels? At some point, you might run out of markers that are distinctly positive/negative. In this case, alternative approaches such as reference mapping (e.g. [Projectils](https://github.com/carmonalab/ProjecTILs) and Seurat [label transfer](https://satijalab.org/seurat/articles/integration_mapping.html)) might be preferable.
 
-We have also seen that samples might present batch effects, and it might be desirable to correct them. We used silhouette scoring as a simple metric to quantify how mixed are cells from different batches to evaluate the batch effect before and after correction. Something we have NOT considered is that batch effects correction might remove important biological variability in addition to technical, unwanted variation. We well discuss this problem and compare different methods in the exercise 3.
-
-
-# Solution
-
-The explanation why the solution contains exactly these thresholds is:
-Unfortunately there is no _one correct solution_. It's rather an estimation by experience and depending on your needs.
-Setting LESS stringent thresholds includes more cells...and more low quality cells.
-Setting MORE stringent thresholds includes less cells...and less low quality cells.
-
-One possibility might be that you set it to remove the lowest 1% (or 0.1% or ...) and highest 1% of cells for each threshold.
-However, as explained in exercise 1, the thresholds could be different for each cell type.
-Also, it might be that one or multiple sample were in bad shape, e.g. because the cells were stored or treated under stressful conditions, and subsequently more stringent thresholds might be required.
-
-```{r warning=FALSE}
-thresh_nFeature_RNA <- c(200, 5000)
-thresh_percent.mt <- 17
-
-plot1 <- VlnPlot(obj, features = "nFeature_RNA", pt.size = 0) +
-  geom_hline(yintercept = thresh_nFeature_RNA, linetype='dashed', col = 'red') + NoLegend()
-plot2 <- VlnPlot(obj, features = "nCount_RNA", pt.size = 0) + NoLegend()
-plot3 <- VlnPlot(obj, features = "percent.mt", pt.size = 0) +
-  geom_hline(yintercept = thresh_percent.mt, linetype='dashed', col = 'red') + NoLegend()
-patchwork::wrap_plots(plot1, plot2, plot3, ncol = 3)
-rm(plot1, plot2, plot3)
-```
-
+We have also seen that samples might present batch effects, which you might want to mitigate.  We used silhouette scoring as a metric to quantify how mixed are cells from different batches to evaluate the batch effect before and after correction. Beware that batch effects correction might remove important biological variability in addition to technical, unwanted variation.
