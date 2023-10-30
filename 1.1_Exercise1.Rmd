@@ -435,7 +435,8 @@ DoHeatmap(pbmc, features = top10$gene) + NoLegend()
 -   Can you guess what cell type cluster 4 is?
 -   Tip: pick one or two marker genes that most strongly differentiate it from all other clusters and google it. Or even better:\
     A useful resource for protein and RNA profiles is the [Human Protein Atlas](https://www.proteinatlas.org/)\
-    For example: [Human Protein Atlas result for gene "S100A9" expression in different cell types](https://www.proteinatlas.org/ENSG00000163220-S100A9/single+cell+type)
+    For example: [Human Protein Atlas result for gene "S100A9" expression in different cell types](https://www.proteinatlas.org/ENSG00000163220-S100A9/single+cell+type)\
+    As we look at immune cells, the "RNA immune" tab is suggested.
 -   Assign a name to the cells in cluster 4
 
 ```{r}
