@@ -272,7 +272,7 @@ Biologically, we are interested in the cells. Some questions that we or our coll
 
 -   Do certain cells express specific gene programs? (e.g. cycling vs non-cycling, stem cell to differentiated cells trajectory, ...)
 
-The first step is always to boil down the data into the most important factors explaining the biggest part of the variance, i.e. to reduce the dimensionality. This can be achieved with, for example, a principle-component analysis (PCA). Sample or cell similarity scoring is then based on e.g. Euclidean distances.
+The first step is always to boil down the data into the most important factors explaining the biggest part of the variance, i.e. to reduce the dimensionality. This can be achieved with, for example, a principal components analysis (PCA). Sample or cell similarity scoring is then based on e.g. Euclidean distances.
 
 ## Performing linear dimensionality reduction by PCA
 
@@ -434,8 +434,8 @@ DoHeatmap(pbmc, features = top10$gene) + NoLegend()
 
 -   Can you guess what cell type cluster 4 is?
 -   Tip: pick one or two marker genes that most strongly differentiate it from all other clusters and google it. Or even better:\
-    A very good resource for protein and RNA profiles is the [Human Protein Atlas](https://www.proteinatlas.org/)\
-    For example: [Human Protein Atlas result for gene "S100A9" expression in immune cells](https://www.proteinatlas.org/ENSG00000163220-S100A9/immune+cell)
+    A useful resource for protein and RNA profiles is the [Human Protein Atlas](https://www.proteinatlas.org/)\
+    For example: [Human Protein Atlas result for gene "S100A9" expression in different cell types](https://www.proteinatlas.org/ENSG00000163220-S100A9/single+cell+type)
 -   Assign a name to the cells in cluster 4
 
 ```{r}

@@ -1615,27 +1615,6 @@
       ],
       "Hash": "88bb96eaf7140cdf29e374ef74182220"
     },
-    "harmony": {
-      "Package": "harmony",
-      "Version": "1.0.3",
-      "Source": "Repository",
-      "Repository": "RSPM",
-      "Requirements": [
-        "Matrix",
-        "R",
-        "Rcpp",
-        "RcppArmadillo",
-        "RcppProgress",
-        "RhpcBLASctl",
-        "cowplot",
-        "dplyr",
-        "ggplot2",
-        "methods",
-        "rlang",
-        "tibble"
-      ],
-      "Hash": "ae92e686936589dec53b0514cff659f6"
-    },
     "here": {
       "Package": "here",
       "Version": "1.0.1",
