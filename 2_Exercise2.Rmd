@@ -131,7 +131,7 @@ barplot(sort(sample.size.pre), las=2)
 
 -   Define minimum and maximum values accepted for "nFeature_RNA"
 
--   Define maximum value accepted for "percent.mt"
+-   Define maximum value accepted for "percent.mt" (define one global threshold that will be applied to all samples, not an individual threshold for each sample separately.)
 
 ```{r}
 thresh_nFeature_RNA <- c(xxx, yyy) # Replace xxx and yyy
