@@ -446,17 +446,16 @@
     },
     "RcppEigen": {
       "Package": "RcppEigen",
-      "Version": "0.3.3.9.3",
+      "Version": "0.3.3.9.4",
       "Source": "Repository",
-      "Repository": "CRAN",
+      "Repository": "RSPM",
       "Requirements": [
-        "Matrix",
         "R",
         "Rcpp",
         "stats",
         "utils"
       ],
-      "Hash": "1e035db628cefb315c571202d70202fe"
+      "Hash": "acb0a5bf38490f26ab8661b467f4f53a"
     },
     "RcppHNSW": {
       "Package": "RcppHNSW",
@@ -643,7 +642,7 @@
     },
     "SeuratObject": {
       "Package": "SeuratObject",
-      "Version": "5.0.0",
+      "Version": "4.1.4",
       "Source": "Repository",
       "Repository": "RSPM",
       "Requirements": [
@@ -653,20 +652,17 @@
         "RcppEigen",
         "future",
         "future.apply",
-        "generics",
         "grDevices",
         "grid",
-        "lifecycle",
         "methods",
         "progressr",
         "rlang",
         "sp",
-        "spam",
         "stats",
         "tools",
         "utils"
       ],
-      "Hash": "d2c4e02ec556af4fe97133c792c5be67"
+      "Hash": "1548d1c211c0a2eff1771991d4f71a9d"
     },
     "SignatuR": {
       "Package": "SignatuR",
@@ -1165,16 +1161,6 @@
         "utils"
       ],
       "Hash": "b18a9cf3c003977b0cc49d5e76ebe48d"
-    },
-    "dotCall64": {
-      "Package": "dotCall64",
-      "Version": "1.1-0",
-      "Source": "Repository",
-      "Repository": "RSPM",
-      "Requirements": [
-        "R"
-      ],
-      "Hash": "7744a30055fea449fc7cd98323b5887c"
     },
     "dplyr": {
       "Package": "dplyr",
@@ -2517,14 +2503,14 @@
     },
     "rlang": {
       "Package": "rlang",
-      "Version": "1.1.1",
+      "Version": "1.1.2",
       "Source": "Repository",
-      "Repository": "CRAN",
+      "Repository": "RSPM",
       "Requirements": [
         "R",
         "utils"
       ],
-      "Hash": "a85c767b55f0bf9b7ad16c6d7baee5bb"
+      "Hash": "50a6dbdc522936ca35afc5e2082ea91b"
     },
     "rmarkdown": {
       "Package": "rmarkdown",
@@ -2795,20 +2781,6 @@
         "utils"
       ],
       "Hash": "e9090fe4ff468d366aa6a76a9b3ec078"
-    },
-    "spam": {
-      "Package": "spam",
-      "Version": "2.10-0",
-      "Source": "Repository",
-      "Repository": "RSPM",
-      "Requirements": [
-        "R",
-        "Rcpp",
-        "dotCall64",
-        "grid",
-        "methods"
-      ],
-      "Hash": "ffe1f9e95a4375530747b268f82b5086"
     },
     "spatstat.data": {
       "Package": "spatstat.data",
