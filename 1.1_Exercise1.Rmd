@@ -460,7 +460,7 @@ DimPlot(pbmc, reduction = "umap", label = TRUE, pt.size = 0.5) + NoLegend()
 
 ## 2. Identify and assign all other clusters too
 
-```{r}
+```{r, eval=F}
 # Enter code here
 
 
