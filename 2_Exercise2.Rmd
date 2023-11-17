@@ -28,8 +28,8 @@ In the second exercise, you will apply what you learnt in exercise 1 to annotate
 
 # Load the environment and libraries
 
-remotes::install_github("carmonalab/scGate",ref="dev")
-remotes::install_github("carmonalab/STACAS",ref="dev")
+#remotes::install_github("carmonalab/scGate",ref="dev") #compatible with Seurat 5
+#remotes::install_github("carmonalab/STACAS",ref="dev")
 library(remotes)
 library(Seurat)
 library(scGate)

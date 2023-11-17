@@ -542,6 +542,29 @@
       ],
       "Hash": "429a75b305518bfd6e3916d374484e1b"
     },
+    "STACAS": {
+      "Package": "STACAS",
+      "Version": "2.2.0",
+      "Source": "GitHub",
+      "RemoteType": "github",
+      "RemoteHost": "api.github.com",
+      "RemoteRepo": "STACAS",
+      "RemoteUsername": "carmonalab",
+      "RemoteRef": "dev",
+      "RemoteSha": "8311ad493ff80577e894ed931a02b2556ae35546",
+      "Requirements": [
+        "BiocNeighbors",
+        "BiocParallel",
+        "R",
+        "R.utils",
+        "Seurat",
+        "ggplot2",
+        "ggridges",
+        "pbapply",
+        "stats"
+      ],
+      "Hash": "2ad661be5d6ca3a86a0a9b06fc9b6b6c"
+    },
     "Seurat": {
       "Package": "Seurat",
       "Version": "5.0.0",
@@ -1054,19 +1077,6 @@
         "methods"
       ],
       "Hash": "b4c06e554f33344e044ccd7fdca750a9"
-    },
-    "data.tree": {
-      "Package": "data.tree",
-      "Version": "1.1.0",
-      "Source": "Repository",
-      "Repository": "CRAN",
-      "Requirements": [
-        "R",
-        "R6",
-        "methods",
-        "stringi"
-      ],
-      "Hash": "d7602f0f55e0335b83f2353337848d6f"
     },
     "deldir": {
       "Package": "deldir",
@@ -2421,6 +2431,20 @@
       ],
       "Hash": "76c9e04c712a05848ae7a23d2f170a40"
     },
+    "remotes": {
+      "Package": "remotes",
+      "Version": "2.4.2.1",
+      "Source": "Repository",
+      "Repository": "CRAN",
+      "Requirements": [
+        "R",
+        "methods",
+        "stats",
+        "tools",
+        "utils"
+      ],
+      "Hash": "63d15047eb239f95160112bcadc4fcb9"
+    },
     "renv": {
       "Package": "renv",
       "Version": "1.0.3",
@@ -2551,8 +2575,13 @@
     "scGate": {
       "Package": "scGate",
       "Version": "1.6.0",
-      "Source": "Bioconductor",
-      "Repository": "CRAN",
+      "Source": "GitHub",
+      "RemoteType": "github",
+      "RemoteHost": "api.github.com",
+      "RemoteRepo": "scGate",
+      "RemoteUsername": "carmonalab",
+      "RemoteRef": "dev",
+      "RemoteSha": "2cdd776ed49c294a3ad5135735c71e1162564add",
       "Requirements": [
         "BiocParallel",
         "R",
@@ -2567,7 +2596,7 @@
         "stats",
         "utils"
       ],
-      "Hash": "e668c3316e68dc6d2ba0a7dc77b1f813"
+      "Hash": "e793bbd0ffe2dd672d806c5a8c13a035"
     },
     "scales": {
       "Package": "scales",
@@ -3114,13 +3143,6 @@
         "utils"
       ],
       "Hash": "b8acdf8af494d9ec19ccb2481a9b11c2"
-    },
-    "yaml": {
-      "Package": "yaml",
-      "Version": "2.3.7",
-      "Source": "Repository",
-      "Repository": "CRAN",
-      "Hash": "0d0056cc5383fbc240ccd0cb584bf436"
     },
     "zlibbioc": {
       "Package": "zlibbioc",
