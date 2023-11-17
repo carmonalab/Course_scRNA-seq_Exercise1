@@ -27,12 +27,12 @@ In the second exercise, you will apply what you learnt in exercise 1 to annotate
 ```{r, message=FALSE, warning=F, results=FALSE}
 
 # Load the environment and libraries
-# remotes::install_github("carmonalab/scGate",ref="7a3576d")
-# remotes::install_github("carmonalab/SignatuR",ref="b1050ae32a600b986f14db236f8d45756aaee05b")
-# remotes::install_github("carmonalab/STACAS",ref="05fa74d")
+
+remotes::install_github("carmonalab/scGate",ref="dev")
+remotes::install_github("carmonalab/STACAS",ref="dev")
+library(remotes)
 library(Seurat)
 library(scGate)
-library(SignatuR)
 library(STACAS)
 library(ggplot2)
 library(dplyr)
