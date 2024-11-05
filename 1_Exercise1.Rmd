@@ -88,6 +88,11 @@ rm(renv.lock_relative_file_path, file_content)
 
 ```{r, message=FALSE, warning=F, results=FALSE}
 # You don't need to install all libraries separately any more
+# 
+# # Except Bioconductor:
+# if (!require("BiocManager", quietly = TRUE))
+#     install.packages("BiocManager")
+# BiocManager::install(version = "3.20")
 
 # In case you get an error about "rcppArmadillo" not being installed, please install it manually.
 
@@ -96,7 +101,7 @@ rm(renv.lock_relative_file_path, file_content)
 # renv::snapshot() # Done when installing additional packages. You don't need to run it now.
 renv::restore() # Run once, when you download a project folder and want to install all dependencies.
 
-# When asked to activate the project, type "y" in the console and press the Enter key.
+# When asked to activate the project, type "1" in the console and press the Enter key.
 # Same when asked "do you want to proceed?". Type "y" in the console and press the Enter key
 
 library(Seurat)

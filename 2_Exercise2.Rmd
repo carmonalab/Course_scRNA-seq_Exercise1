@@ -202,7 +202,7 @@ For example, you can identify immune cells as CD45+. Then, immune cells can be f
 
 You can define your own GM or use pre-defined GMs from [scGate models database](https://github.com/carmonalab/scGate_models/blob/master/human/generic/master_table.tsv)
 
-In this exercise we will use a pre-defined collection of gating models intended to classify cells from the tumor micro-environment at high-resolution, called "TME_HiRes" This step should take about 1-2 minutes
+In this exercise we will use a pre-defined collection of gating models intended to classify cells from the tumor micro-environment at high-resolution, called "TME_HiRes" This step should take about 2-5 minutes
 
 ```{r}
 # download database of gating models
@@ -237,7 +237,7 @@ ggsave(file.path(path_plots,"UMAP_full_by_annotation.png"), width = 10, height =
 
 
 ```{r}
-YOUR CODE HERE 
+### YOUR CODE HERE ###
 
 ```
 
@@ -255,6 +255,8 @@ sample_from_another_dataset <- readRDS(file.path(path_data, "sample_from_another
 obj.multi_study <- merge(obj, sample_from_another_dataset)
 rm(sample_from_another_dataset)
 gc()
+
+obj.multi_study <- JoinLayers(obj.multi_study)
 
 # For your convenience, the cell types in the ""sample_from_another_dataset" were already assigned
 # So, no need to run scGate for cell annotation again
@@ -282,6 +284,7 @@ obj.multi_study.list <- SplitObject(obj.multi_study, split.by = "orig.ident")
 obj.multi_study.batch_corrected <- Run.STACAS(obj.multi_study.list)
 obj.multi_study.batch_corrected <- RunUMAP(obj.multi_study.batch_corrected, reduction = "pca", dims = 1:ndim, seed.use=my_seed)
 rm(obj.multi_study.list)
+gc()
 ```
 
 ## Lets compare UMAPs of uncorrected and corrected gene profiles
@@ -290,17 +293,17 @@ rm(obj.multi_study.list)
 ## BEFORE
 DimPlot(obj.multi_study, reduction = "umap", group.by = "scGate_multi", label = F) +
   theme(aspect.ratio=1) +
-  ggtitle("UMAP - BEFORE batch correction - clusters labelled by cell types")
+  ggtitle("UMAP - BEFORE batch correction\nclusters labelled by cell types")
 DimPlot(obj.multi_study, reduction = "umap", group.by = "orig.ident") +
   theme(aspect.ratio=1) +
-  ggtitle("UMAP - BEFORE batch correction - clusters labelled by sample")
+  ggtitle("UMAP - BEFORE batch correction\nclusters labelled by sample")
 ## AFTER
 DimPlot(obj.multi_study.batch_corrected, reduction = "umap", group.by = "scGate_multi", label = F) +
   theme(aspect.ratio=1) +
-  ggtitle("UMAP - AFTER batch correction - clusters labelled by cell types")
+  ggtitle("UMAP - AFTER batch correction\nclusters labelled by cell types")
 DimPlot(obj.multi_study.batch_corrected, reduction = "umap", group.by = "orig.ident") +
   theme(aspect.ratio=1) +
-  ggtitle("UMAP - AFTER batch correction - clusters labelled by sample")
+  ggtitle("UMAP - AFTER batch correction\nclusters labelled by sample")
 
 
 ```
@@ -402,10 +405,10 @@ obj.CD8T.multi.batch_corrected <- subset(obj.multi_study.batch_corrected, subset
 
 DimPlot(obj.CD8T.batch_corrected, reduction = "pca", group.by = "orig.ident") +
   theme(aspect.ratio=1) +
-  ggtitle("PCA - AFTER batch correction - all samples from same dataset")
+  ggtitle("PCA - AFTER batch correction\nall samples from same dataset")
 DimPlot(obj.CD8T.multi.batch_corrected, reduction = "pca", group.by = "orig.ident") +
   theme(aspect.ratio=1) +
-  ggtitle("PCA - AFTER batch correction - with study1_sample from another dataset")
+  ggtitle("PCA - AFTER batch correction\nwith study1_sample from another dataset")
 ```
 
 

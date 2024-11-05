@@ -17,15 +17,20 @@ output:
 In the third exercise, you will apply what you learnt in exercise 2 to annotate a breast cancer dataset.
 
 ```{r, message=FALSE, warning=F, results=FALSE}
+# If you are asked:
+  # These packages have more recent versions available.
+  # It is recommended to update all of them.
+  # Which would you like to update?
+# Enter 1 and press enter
 
 # Load the environment and libraries
-# install.packages("remotes")
-# library(remotes)
-# remotes::install_github("carmonalab/scGate",ref="7a3576d")
-# remotes::install_github("carmonalab/SignatuR",ref="b1050ae32a600b986f14db236f8d45756aaee05b")
-# remotes::install_github("carmonalab/STACAS",ref="05fa74d")
 # remotes::install_github("carmonalab/scIntegrationMetrics")
+install.packages("devtools")
+devtools::install_github('satijalab/seurat-data')
+
+
 library(Seurat)
+library(SeuratData)
 library(scGate)
 library(SignatuR)
 library(STACAS)
@@ -35,9 +40,6 @@ library(dplyr)
 library(patchwork)
 library(parallel)
 library(harmony)
-
-# devtools::install_github('satijalab/seurat-data')
-library(SeuratData)
 ```
 
 # Set paths
