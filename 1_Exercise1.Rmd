@@ -22,25 +22,23 @@ output:
 
 # Introduction
 
-In the first part of the course you mainly learnt about the fundamental concepts in (gene expression) data analysis and implemented them by writing your own algorithms for each one of them.
+In the first part of the course you learned about fundamental concepts in (gene expression) data analysis and implemented them by writing your own algorithms. In practice, however, there are thousands of software packages implementing these algorithms, that we can use.
 
-In this second part of the course we will make our life much easier! As our colleagues all around the world face the same challenges as we do, sometimes in completely different fields of science, there is a package written by someone else for almost anything already out there. Why re-inventing the wheel, right?
-
-So, in this first exercise, you will learn about the most popular software packages for scRNA-seq data analysis called **Seurat**, and how to create a reproducible bioinformatics experiment with it. This tutorial is based mainly on the [**Seurat introduction tutorial**]{.underline} ([link](https://satijalab.org/seurat/articles/pbmc3k_tutorial)). There you can find further explanations on functions, techniques and references. You can also use it as an additional guide to this exercise.
+In this exercise, you will learn about the most popular software packages for scRNA-seq data analysis called **Seurat**, and how to create a reproducible bioinformatics experiment with it. This tutorial is based mainly on the [**Seurat introduction tutorial**]{.underline} ([link](https://satijalab.org/seurat/articles/pbmc3k_tutorial)). There you can find further explanations on functions, techniques and references. You can also use it as an additional guide to this exercise.
 
 ## Using existing packages
 
-Obviously, using existing packages has many advantages but also **some critical points to consider:**
+Obviously, using existing packages has many advantages but also **some critical points to consider.**
 
 [Advantages]{.underline}
 
--   Ready-made and easy to use
+-   Ready-made, well documented, extensively tested
 
--   Speeds up data analysis process A LOT
+-   Speeds up data analysis
 
 [Points to consider]{.underline}
 
--   [**Which version was used to run your code?**]{.underline} A piece of code might run with one version of a package but not with an older or newer version, due to changes in the source code. [**Different versions of a package or R itself might break some parts of your code!**]{.underline} How can we make sure that our code can be reproduced by us and others now and in the future?
+-   [**Which version was used?**]{.underline} A piece of code might run with one version of a package but not with an older or newer version. [**Different versions of a package might break some parts of your code or produce different results!**]{.underline} How can we make sure that our code can be reproduced by us and others now and in the future? Solution in R: use [**RENV**]{https://rstudio.github.io/renv/articles/renv.html}
 
 -   What parameters are used? Sometimes, the default parameter might not be "one size fits it all". You need to check what they do and when and how to adapt them.
 
@@ -60,50 +58,22 @@ Obviously, using existing packages has many advantages but also **some critical 
 -   RStudio has a very useful `Outline` function, which makes navigating a long script much easier. It can be used in R markdown files but also for regular R scripts (highly recommended) by opening the `Outline` on the top-right corner of the script window:\
     ![](images/Screenshot%202023-08-07%20at%2009.52.28.png)
 
+
+# Setting up a fresh environment
 ```{r}
-?renv::snapshot
+install.packages("renv")
+library(renv)
+renv::activate()
 ```
 
-# Loading the environment
 
-Instead of loading the libraries one by one, we will use the R package [**renv** (link)](https://rstudio.github.io/renv/articles/renv.html) (which reproduces the environment functionality from Python). Renv allows you to create "snapshots" of the R version and the packages used within an R project, and thus making it reproducible. It is stored in the "renv.lock" file in your project folder.
+# Installing packages
 
 ```{r}
-# Where does our project live?
-getwd()
-
-# List the content of our project folder
-list.files(getwd())
+source("install_packages.R")
 ```
 
 ```{r}
-# Lets have a look the first 20 lines in the renv.lock file
-renv.lock_relative_file_path <- "renv.lock"
-file_content <- read.delim(file = renv.lock_relative_file_path)
-cat(file_content[1:20,], sep="\n")
-
-# Remove variables that are not needed anymore to keep the environment clean
-rm(renv.lock_relative_file_path, file_content)
-```
-
-```{r, message=FALSE, warning=F, results=FALSE}
-# You don't need to install all libraries separately any more
-# 
-# # Except Bioconductor:
-# if (!require("BiocManager", quietly = TRUE))
-#     install.packages("BiocManager")
-# BiocManager::install(version = "3.20")
-
-# In case you get an error about "rcppArmadillo" not being installed, please install it manually.
-
-# Load the whole environment with the "renv" package function renv::restore()
-# renv::init() # Used only one time after creating a new project. You don't need to run it now.
-# renv::snapshot() # Done when installing additional packages. You don't need to run it now.
-renv::restore() # Run once, when you download a project folder and want to install all dependencies.
-
-# When asked to activate the project, type "1" in the console and press the Enter key.
-# Same when asked "do you want to proceed?". Type "y" in the console and press the Enter key
-
 library(Seurat)
 library(ggplot2)
 library(dplyr)
@@ -112,7 +82,7 @@ library(dplyr)
 # Set paths
 
 ```{r}
-# Define file paths and create folders
+# Define file paths for input data and create directories to export resutls and figures
 root <- getwd()
 path_data <- file.path(root, "data/Exercise1")
 dir.create(file.path(path_data), recursive = TRUE)
@@ -140,7 +110,7 @@ if (!file.exists(destfile)) {
 rm(destfile)
 ```
 
-Note: this Peripheral Blood Mononuclear Cells (PBMC) dataset from 10X is a very "clean" dataset. In exercise 2 of this course you will have a look at the breast cancer scRNA-seq data that you shortly looked at before during David Gfeller's part of the course. It is a more representative "real-world" dataset.
+Note: this Peripheral Blood Mononuclear Cells (PBMC) dataset from 10X is a very "clean" dataset. In exercise 2 of this course you will have a look at the more complex breast cancer scRNA-seq data that you previously explored in the previous module of the course.
 
 ## Load data and create a Seurat object
 
@@ -433,6 +403,14 @@ pbmc.markers %>%
 DoHeatmap(pbmc, features = top10$gene) + NoLegend()
 ```
 
+
+Take a snapshot of currently loaded packages, for future reproducibility
+```{r}
+sessionInfo()
+renv::snapshot() # this will take a snapshot of your current environment (in the file renv.lock). If you wish, you can then reproduce this environment using the call renv::restore()
+```
+
+
 # ℹ️ Exercises
 
 ## 1. Identify cluster 4 and give it a name
@@ -473,7 +451,7 @@ DimPlot(pbmc, reduction = "umap", label = TRUE, pt.size = 0.5) + NoLegend()
 
 ```
 
-# \-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\--
+# --------------------------------------
 
 # Solution
 
@@ -488,3 +466,5 @@ names(new.cluster.ids) <- levels(pbmc)
 pbmc <- RenameIdents(pbmc, new.cluster.ids)
 DimPlot(pbmc, reduction = "umap", label = TRUE, pt.size = 0.5) + NoLegend()
 ```
+
+
