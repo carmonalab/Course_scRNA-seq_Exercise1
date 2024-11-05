@@ -30,4 +30,4 @@ for (pkg in basename(pkgs)) {
 install.packages("Seurat", repos = "https://cran.rstudio.com", type = "source")
 
 # STACAS for integration:
-remotes::install_github("carmonalab/STACAS")
+remotes::install_github("carmonalab/STACAS", type = "source")

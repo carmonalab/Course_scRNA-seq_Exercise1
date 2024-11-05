@@ -67,10 +67,11 @@ renv::activate()
 ```
 
 
-# Installing packages
+# Installing packages (if not already done)
 
-```{r}
-source("install_packages.R")
+If not previously installed, run the following
+```{r, eval=F}
+source("install_packages_minimal.R") 
 ```
 
 ```{r}

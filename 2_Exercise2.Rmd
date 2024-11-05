@@ -24,6 +24,14 @@ output:
 
 In the second exercise, you will apply what you learnt in exercise 1 to annotate the celltypes in a breast cancer dataset (which you have seen shortly seen at the previous module of this course)
 
+
+# Installing packages (if not already done)
+
+If not previously installed, run the following
+```{r, eval=F}
+source("install_packages.R") 
+```
+
 ```{r, message=FALSE, warning=F, results=FALSE}
 library(Seurat)
 library(scGate)
