@@ -31,3 +31,4 @@ install.packages("Seurat", repos = "https://cran.rstudio.com", type = "source")
 
 # STACAS for integration:
 remotes::install_github("carmonalab/STACAS", type = "source")
+remotes::install_github("carmonalab/scGate", type = "source")
