@@ -2,7 +2,7 @@
 # R script to install requirements for exercises -------------------------------
 
 pkgs <- c("devtools", "remotes",
-          "BiocManager", "dplyr","renv"
+          "BiocManager", "dplyr","renv", "factoextra"
 )
 
 ## install Bioconductor --------------------------------------------------------
