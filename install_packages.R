@@ -1,7 +1,7 @@
 #!/usr/bin/env Rscript
 # R script to install requirements for exercises -------------------------------
 
-pkgs <- c("devtools", "remotes",
+pkgs <- c("devtools", "remotes", "harmony",
           "BiocManager", "dplyr","renv", "factoextra"
 )
 
@@ -31,4 +31,8 @@ install.packages("Seurat", repos = "https://cran.rstudio.com", type = "source")
 
 # STACAS for integration:
 remotes::install_github("carmonalab/STACAS", type = "source")
+
+# Other packages
 remotes::install_github("carmonalab/scGate", type = "source")
+remotes::install_github("carmonalab/SignatuR", type = "source")
+remotes::install_github("carmonalab/scIntegrationMetrics", type = "source")
