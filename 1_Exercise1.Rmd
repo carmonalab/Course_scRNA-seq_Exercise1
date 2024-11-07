@@ -60,7 +60,7 @@ Obviously, using existing packages has many advantages but also **some critical 
 
 
 # Setting up a fresh environment
-```{r}
+```{r, eval=F}
 install.packages("renv")
 library(renv)
 renv::activate()
@@ -405,9 +405,12 @@ DoHeatmap(pbmc, features = top10$gene) + NoLegend()
 ```
 
 
-Take a snapshot of currently loaded packages, for future reproducibility
+
 ```{r}
 sessionInfo()
+```
+Take a snapshot of currently loaded packages, for future reproducibility
+```{r, eval=F}
 renv::snapshot() # this will take a snapshot of your current environment (in the file renv.lock). If you wish, you can then reproduce this environment using the call renv::restore()
 ```
 
