@@ -29,7 +29,7 @@ In the second exercise, you will apply what you learnt in exercise 1 to annotate
 
 If not previously installed, run the following
 ```{r, eval=F}
-source("install_packages.R") 
+source("install_packages.R")
 ```
 
 ```{r, message=FALSE, warning=F, results=FALSE}
@@ -40,6 +40,7 @@ library(ggplot2)
 library(dplyr)
 library(patchwork)
 library(parallel)
+library(factoextra)
 ```
 
 # Set paths
