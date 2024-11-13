@@ -230,8 +230,8 @@ plot2
 rm(top10, plot1, plot2)
 
 # Scale data
-all.genes <- rownames(pbmc)
-pbmc <- ScaleData(pbmc, features = all.genes)
+#all.genes <- rownames(pbmc)
+pbmc <- ScaleData(pbmc)
 ```
 
 # Data exploration & visualization
@@ -260,6 +260,9 @@ print(pbmc[["pca"]], dims = 1:5, nfeatures = 5)
 VizDimLoadings(pbmc, dims = 1:2, reduction = "pca")
 DimPlot(pbmc, reduction = "pca")
 DimHeatmap(pbmc, dims = 1, cells = 500, balanced = TRUE)
+```
+```{r}
+FeaturePlot(pbmc, reduction = "pca", features=c("CD79A","LYZ","GZMB","PPBP"))
 ```
 
 ```{r fig.width=5, fig.height=10, warning=FALSE}
@@ -300,6 +303,13 @@ head(Idents(pbmc), 5)
 # For comparison, this is how the cluters look in the linear PCA space
 DimPlot(pbmc, reduction = "pca", label = TRUE)
 ```
+EXERCISE: Explore different levels of clustering granularity by changing the parameter "resolution" and then try:
+```{r, eval=F}
+library(clustree)
+clustree(pbmc, prefix = "RNA_snn_res.")
+```
+
+
 
 ## Run non-linear dimensional reduction (UMAP/tSNE)
 
@@ -318,6 +328,7 @@ DimPlot(pbmc, reduction = "umap")
 # individual clusters
 DimPlot(pbmc, reduction = "umap", label = TRUE)
 ```
+
 
 ### Making stochastic processes reproducible
 
@@ -384,7 +395,7 @@ VlnPlot(pbmc, features = c("MS4A1", "CD79A", "NKG7", "CD8A", "CD8B"), ncol = 2)
 ```
 
 ```{r fig.width=10, fig.height=8}
-FeaturePlot(pbmc, features = c("MS4A1", "GNLY", "CD3E", "CD14", "FCER1A", "FCGR3A", "LYZ", "PPBP", "CD8A"))
+FeaturePlot(pbmc, features = c("MS4A1","CD79A","GNLY","NKG7","CD3E","CD2","CD14","FCER1A", "FCGR3A", "LYZ", "PPBP"))
 ```
 
 DoHeatmap() generates an expression heatmap for given cells and features. In this case, we are plotting the top 20 markers (or all markers if less than 20) for each cluster.
@@ -409,10 +420,12 @@ DoHeatmap(pbmc, features = top10$gene) + NoLegend()
 ```{r}
 sessionInfo()
 ```
+
 Take a snapshot of currently loaded packages, for future reproducibility
 ```{r, eval=F}
 renv::snapshot() # this will take a snapshot of your current environment (in the file renv.lock). If you wish, you can then reproduce this environment using the call renv::restore()
 ```
+
 
 
 # ℹ️ Exercises
@@ -459,16 +472,27 @@ DimPlot(pbmc, reduction = "umap", label = TRUE, pt.size = 0.5) + NoLegend()
 
 # Solution
 
-```{r paged.print=FALSE}
-solutions_df <- readRDS('./output/1_Solutions.rds')
-solutions_df
+```{r fig.height=10, fig.width=10}
+VlnPlot(pbmc, features = c("MS4A1","CD79A","GNLY","KLRD1","CD3E","CD3D","CD14","FCGR3A","PPBP","CD1C"))
+
+FeaturePlot(pbmc, features = c("MS4A1","CD79A","GNLY","KLRD1","CD3E","CD3D","CD14","FCGR3A","PPBP","CD1C"))
+
+FeaturePlot(pbmc, reduction = "pca", features = c("MS4A1","CD79A","GNLY","KLRD1","CD3E","CD3D","CD14","FCGR3A","PPBP","CD1C"))
+
 ```
 
 ```{r}
-new.cluster.ids <- solutions_df$Cell.Type
+new.cluster.ids <- c("CD3E", "CD3E", "CD14", "MS4A1", "CD3E", "CD16", "KLRD1", "CD1C", "Plat")
 names(new.cluster.ids) <- levels(pbmc)
 pbmc <- RenameIdents(pbmc, new.cluster.ids)
 DimPlot(pbmc, reduction = "umap", label = TRUE, pt.size = 0.5) + NoLegend()
 ```
+
+```{r, eval=F}
+#requireNamespace("ape", quietly = TRUE)
+pbmc <- BuildClusterTree(object = pbmc)
+PlotClusterTree(object = pbmc)
+```
+
 
 
