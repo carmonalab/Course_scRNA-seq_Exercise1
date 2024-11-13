@@ -305,6 +305,8 @@ DimPlot(pbmc, reduction = "pca", label = TRUE)
 ```
 EXERCISE: Explore different levels of clustering granularity by changing the parameter "resolution" and then try:
 ```{r, eval=F}
+head(pbmc@meta.data$RNA_snn_res.0.5) # the cluster IDs are store in a new metadata column. It's name depends on the configuration used, for instance if resolution of 0.5 was used, it's named "RNA_snn_res.0.5" 
+
 library(clustree)
 clustree(pbmc, prefix = "RNA_snn_res.")
 ```
@@ -483,7 +485,7 @@ FeaturePlot(pbmc, reduction = "pca", features = c("MS4A1","CD79A","GNLY","KLRD1"
 
 ```{r}
 new.cluster.ids <- c("CD3E", "CD3E", "CD14", "MS4A1", "CD3E", "CD16", "KLRD1", "CD1C", "Plat")
-names(new.cluster.ids) <- levels(pbmc)
+names(new.cluster.ids) <- levels(pbmc$RNA_snn_res.0.5)
 pbmc <- RenameIdents(pbmc, new.cluster.ids)
 DimPlot(pbmc, reduction = "umap", label = TRUE, pt.size = 0.5) + NoLegend()
 ```
