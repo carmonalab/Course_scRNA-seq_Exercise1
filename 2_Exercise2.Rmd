@@ -61,12 +61,11 @@ dir.create(file.path(path_plots))
 
 # Load the data
 
-## Download the data
+## Download the data (If not done before)
 
-If not done before
 
 ```{r}
-# Download the Peripheral Blood Mononuclear Cells (PBMC) dataset
+# If it fails, download and unzip manually
 destfile <- file.path(path_data, "Archive.zip")
 if (!file.exists(destfile)) {
   download.file(url = "https://www.dropbox.com/scl/fi/frnqtdn97ybw2s8g2k9xj/Archive.zip?rlkey=5zx2i97nzvce98snjsq77ta56&dl=1",
@@ -82,16 +81,26 @@ rm(destfile)
 ```{r, message=FALSE, warning=F}
 brca.data = Read10X(file.path(path_data))
 
-# Initialize the Seurat object with the raw (non-normalized data).
-obj <- CreateSeuratObject(counts = brca.data, project = "brca",
-                          min.cells = 3, min.features = 200)
+head(colnames(brca.data)) # column names contain sample ID and cell barcode separated by "_"
+```
 
-# For the sake of calculation time and RAM memory constraints in some laptops, we use just a small part of the dataset for this exercise
+
+```{r, message=FALSE, warning=F}
+# Create Seurat object containin count data matrix
+obj <- CreateSeuratObject(counts = brca.data, project = "brca",
+                          min.cells = 3, min.features = 200, names.delim="_") 
+head(obj@meta.data, 5)
+# Seurat created a meta data column "orig.ident" containing the sample ID
+table(obj@meta.data$orig.ident)
+```
+How many cells are in each sample?
+
+```{r, message=FALSE, warning=F}
+# For the sake of calculation time and RAM memory constraints in some laptops, we only keep up to 500 cells per sample (this is called downsampling)
 obj <- subset(obj, downsample=500)
-obj
+table(obj@meta.data$orig.ident)
 
 rm(brca.data)
-gc()
 ```
 
 # QC and pre-processing
