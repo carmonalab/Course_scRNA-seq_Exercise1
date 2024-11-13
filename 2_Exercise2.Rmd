@@ -206,13 +206,16 @@ DimPlot(obj, reduction = "umap", group.by = "orig.ident") + theme(aspect.ratio=1
 
 # Automated cell type annotation with scGate
 
-In the previous exercise you annotated clusters of cells manually. You did so by checking which genes are most highly expressed in a cluster and prefereably not in the others, i.e. which specific gene expression characterizes your cell type of interest. As this is time-consuming and subjective, many tools have been developed to automate this process. The basic principle is the same: cell types are characterized by a specific gene expression pattern. Popular tools for automated scRNAseq cell type annotation include SingleR, CellTypist, and Garnett.
+In the previous exercise you annotated clusters of cells manually, finding cell type marker genes differentially expressed between clusters. 
+As this is time-consuming and subjective, many tools have been developed to automate this process, including SingleR, CellTypist, Garnett and scGate.
 
-In this exercise, you will apply [scGate](https://github.com/carmonalab/scGate), an R package that automatizes the typical manual marker-based approach to cell type annotation (https://doi.org/10.1093/bioinformatics/btac141). Briefly, scGate takes as input: i) a gene expression matrix stored in a Seurat object and ii) a “gating model” (GM), consisting of a set of marker genes that define the cell population of interest. The GM can be as simple as a single marker gene, or a combination of positive and negative markers. More complex GMs can be constructed in a hierarchical fashion, akin to gating strategies employed in flow cytometry.
+In this exercise, you will apply [scGate](https://github.com/carmonalab/scGate), an R package that automatizes the typical manual marker-based approach to cell type annotation (https://doi.org/10.1093/bioinformatics/btac141). Briefly, scGate takes as input: i) a gene expression matrix stored in a Seurat object and ii) a “gating model” (GM), consisting of a set of marker genes that define the cell population of interest. The GM can be as simple as a single marker gene, or a combination of positive and negative markers. More complex GMs can be constructed in a hierarchical fashion, akin to gating strategies employed in flow cytometry. 
 For example, you can identify immune cells as CD45+. Then, immune cells can be further split into e.g. CD45+CD8+ cells and others that are CD45+CD8-. B cells for example are CD45+CD8-CD20+ and so on.
 ![](images/scGate_hierarchical_gating.png)
 
 You can define your own GM or use pre-defined GMs from [scGate models database](https://github.com/carmonalab/scGate_models/blob/master/human/generic/master_table.tsv)
+
+scGate will output the predicted cell type of each cell in a new meta data column named "scGate_multi".
 
 In this exercise we will use a pre-defined collection of gating models intended to classify cells from the tumor micro-environment at high-resolution, called "TME_HiRes" This step should take about 2-5 minutes
 
@@ -266,7 +269,6 @@ sample_from_another_dataset <- readRDS(file.path(path_data, "sample_from_another
 
 obj.multi_study <- merge(obj, sample_from_another_dataset)
 rm(sample_from_another_dataset)
-gc()
 
 obj.multi_study <- JoinLayers(obj.multi_study)
 
@@ -296,7 +298,6 @@ obj.multi_study.list <- SplitObject(obj.multi_study, split.by = "orig.ident")
 obj.multi_study.batch_corrected <- Run.STACAS(obj.multi_study.list)
 obj.multi_study.batch_corrected <- RunUMAP(obj.multi_study.batch_corrected, reduction = "pca", dims = 1:ndim, seed.use=my_seed)
 rm(obj.multi_study.list)
-gc()
 ```
 
 ## Lets compare UMAPs of uncorrected and corrected gene profiles
@@ -431,6 +432,6 @@ Now calculate the silhouette scores for the corrected object and compare to the 
 
 # Conclusions
 
-Automated approaches for cell type classification are preferable over manual annotation for consistency of results and scalability. In particular, marker-based approaches, such as scGate used here, have the advantage that are transparent and flexible, but depends on well defined marker genes. What if biologically relevant cell states are defined by subtle gradients of gene expression levels? At some point, you might run out of markers that are distinctly positive/negative. In this case, alternative approaches such as reference mapping (e.g. [Projectils](https://github.com/carmonalab/ProjecTILs) and Seurat [label transfer](https://satijalab.org/seurat/articles/integration_mapping.html)) might be preferable.
+Automated approaches for cell type classification have an advantage over manual annotation in terms of consistency of results and scalability. In particular, marker-based approaches, such as scGate used here, have the advantage that are transparent and flexible, but depends on well defined marker genes. What if biologically relevant cell states are defined by subtle gradients of gene expression levels? At some point, you might run out of markers that are distinctly positive/negative. In this case, alternative approaches such as reference mapping (e.g. Seurat [label transfer](https://satijalab.org/seurat/articles/integration_mapping.html) and [Projectils](https://github.com/carmonalab/ProjecTILs)) might be preferable.
 
-We have also seen that samples might present batch effects, which you might want to mitigate.  We used silhouette scoring as a metric to quantify how mixed are cells from different batches to evaluate the batch effect before and after correction. Beware that batch effects correction might remove important biological variability in addition to technical, unwanted variation.
+We have also seen that samples might present batch effects, which you might want to remove. We used silhouette scoring as a metric to quantify how mixed are cells from different batches to evaluate the batch effect before and after correction. Beware that batch effects correction might remove important biological variability in addition to technical, unwanted variation.
